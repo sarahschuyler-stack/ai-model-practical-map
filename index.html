@@ -70,6 +70,31 @@ button:hover{filter:brightness(1.08)}
 .flow{display:grid;grid-template-columns:1fr auto 1fr auto 1fr auto 1fr;gap:12px;align-items:center;margin-top:18px}.flowbox{padding:18px;text-align:center;background:#0b192a;border:1px solid var(--line);border-radius:14px}.flowbox b{display:block;font-size:15px}.flowbox span{display:block;font-size:11px;color:var(--muted);margin-top:5px}.arrow{color:var(--cyan);font-weight:900}
 .sources{padding:20px}.sources a{color:#9ed9ff}.sources li{margin:8px 0;color:#aebfd2;font-size:12px;line-height:1.4}
 .footer{margin-top:40px;border-top:1px solid var(--line);padding-top:18px;color:#7189a5;font-size:11px}
+.pb{padding:22px;margin-top:18px;display:none}
+.pbhead h3{margin:6px 0 4px;font-size:23px;letter-spacing:-.03em}
+.pbhead p{margin:0;color:var(--muted);font-size:13px;line-height:1.5;max-width:680px}
+.targets{display:flex;gap:8px;flex-wrap:wrap;margin-top:16px}
+.target{display:flex;flex-direction:column;align-items:flex-start;gap:3px;text-align:left;background:#0b1a2b;border:1px solid var(--line);padding:10px 13px;border-radius:12px;color:#c3d2e3;font-weight:650}
+.target small{font-size:10px;text-transform:uppercase;letter-spacing:.1em;color:var(--muted);font-weight:800}
+.target.on{border-color:var(--cyan);background:#10283f;color:white;box-shadow:0 0 0 3px rgba(103,232,249,.10)}
+.wizard{margin-top:18px;padding:18px;background:#0a1727;border:1px solid var(--line);border-radius:14px}
+.progress{display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.1em;font-weight:800}
+.progressbar{height:4px;background:#162940;border-radius:99px;overflow:hidden;margin:10px 0 16px}.progressbar>i{display:block;height:100%;background:linear-gradient(90deg,#4cc9f0,#7aa2ff);border-radius:99px;transition:width .25s}
+.q{font-size:18px;font-weight:750;letter-spacing:-.02em;line-height:1.35}
+.qhint{font-size:12px;color:var(--muted);margin:6px 0 12px;line-height:1.5}
+.wizard textarea{min-height:90px;font-size:14px}
+.choices{display:flex;gap:7px;flex-wrap:wrap}
+.choice{font-size:12px;padding:8px 11px;background:#0b1a2b;border:1px solid var(--line);color:#c3d2e3;font-weight:600}
+.choice.on{border-color:var(--cyan);background:#10283f;color:white}
+.wizctl{display:flex;gap:8px;flex-wrap:wrap;justify-content:space-between;margin-top:14px}
+.wizctl div{display:flex;gap:8px;flex-wrap:wrap}
+button.ghost{background:transparent;border:1px solid var(--line);color:#b8cae0}
+.output{margin-top:18px}
+.outhead{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:10px}
+.outacts{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.output textarea{min-height:380px;font-size:13px;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;line-height:1.55}
+.copied{color:var(--green);font-size:12px;font-weight:700;opacity:0;transition:opacity .2s}.copied.show{opacity:1}
+.tips{margin-top:12px;font-size:12px;color:#aabdd2;line-height:1.55}.tips b{color:white}
 @media(max-width:900px){.hero{grid-template-columns:1fr}.stamp{justify-self:start;text-align:left}.kpis{grid-template-columns:repeat(2,1fr)}.models{grid-template-columns:1fr}.results{grid-template-columns:1fr}.methodgrid{grid-template-columns:repeat(2,1fr)}.flow{grid-template-columns:1fr}.arrow{transform:rotate(90deg);text-align:center}}
 @media(max-width:520px){.kpis,.methodgrid{grid-template-columns:1fr}h1{font-size:45px}.wrap{padding-left:14px;padding-right:14px}.nav{margin-left:-14px;margin-right:-14px}}
 </style>
@@ -119,6 +144,7 @@ button:hover{filter:brightness(1.08)}
 <h2>Describe the job. Get three model choices.</h2>
 <p class="intro">This runs entirely in your browser. It uses task signals plus the practical scores above—no API key, no server, and no hidden model call.</p>
 <div class="card builder">
+<div class="rank" style="margin-bottom:10px">Step 1 · Describe the job</div>
 <textarea id="task" placeholder="Example: I have a 600-file accounting application repo. Find why the reconciliation engine occasionally double-posts, inspect the architecture, fix the bug, run tests, and challenge whether our current design is the right one."></textarea>
 <div class="presets">
 <button class="preset" data-preset="Research 20 current competitors across the web, Reddit and social sources. Find obscure products I probably do not know about, compare their features, and synthesize the market.">Wide research</button>
@@ -134,6 +160,27 @@ button:hover{filter:brightness(1.08)}
   <div class="card rec" id="cheap"></div>
   <div class="card rec" id="premium"></div>
   <div class="card rec" id="balanced"></div>
+</div>
+<div class="card pb" id="prompt">
+  <div class="pbhead">
+    <div class="rank">Step 2 · Build the prompt</div>
+    <h3>Turn the job into a prompt for the recommended model</h3>
+    <p>Answer a few short questions, or skip any you like. The builder combines your answers with the task description and writes a structured prompt tuned to the model you pick below.</p>
+  </div>
+  <div class="targets" id="targets"></div>
+  <div class="wizard" id="wizard"></div>
+  <div class="output" id="output" style="display:none">
+    <div class="outhead">
+      <div class="rank" id="outTitle"></div>
+      <div class="outacts">
+        <span class="copied" id="copied">Copied to clipboard</span>
+        <button class="ghost" id="editAnswers">Edit answers</button>
+        <button class="primary" id="copyPrompt">Copy prompt</button>
+      </div>
+    </div>
+    <textarea id="promptOut" spellcheck="false"></textarea>
+    <div class="tips" id="tips"></div>
+  </div>
 </div>
 </section>
 
@@ -307,9 +354,149 @@ document.getElementById("recommend").onclick=()=>{
  renderRec(document.getElementById("balanced"),"03 · Best practical overall",r.balanced,r.n,"balanced");
  document.getElementById("results").style.display="grid";
  document.getElementById("results").scrollIntoView({behavior:"smooth",block:"nearest"});
+ initPromptBuilder(r);
 };
-document.getElementById("clear").onclick=()=>{document.getElementById("task").value="";document.getElementById("results").style.display="none"};
+document.getElementById("clear").onclick=()=>{document.getElementById("task").value="";document.getElementById("results").style.display="none";document.getElementById("prompt").style.display="none"};
 document.querySelectorAll(".preset").forEach(b=>b.onclick=()=>{document.getElementById("task").value=b.dataset.preset;document.getElementById("recommend").click()});
+
+/* ---------- Step 2: prompt builder ---------- */
+const pb={rec:null,target:"balanced",answers:{},step:0,ct:null};
+const $=id=>document.getElementById(id);
+function esc(s){return String(s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]))}
+const targetLabels={cheap:"Cheapest that works",premium:"Best regardless of price",balanced:"Best practical overall"};
+
+const modelGuidance={
+ astra:{role:"a frontier-level analyst and engineer",style:"Take the full problem end to end. Investigate broadly first, then commit to the strongest path and finish the deliverable completely.",tips:"Astra handles very long, open-ended work well. Give it the whole job in one prompt rather than splitting it, and say clearly when it should stop and report back."},
+ fable:{role:"a principal-level engineer and analyst",style:"Reason deeply before acting. Test your own assumptions, look for root causes rather than symptoms, and challenge the framing if it seems wrong.",tips:"Fable rewards ambiguity and hard problems. Tell it what a wrong answer would look like and invite it to push back on the premise."},
+ opus:{role:"a senior engineer and careful professional",style:"Work carefully and persistently. Verify each step before moving on and keep a clear trail of what you changed and why.",tips:"Opus is strong on production coding and finance logic. Be explicit about verification steps and what counts as done."},
+ sol:{role:"a versatile senior analyst",style:"Explore the space of options first, then narrow to a well-argued recommendation. Show the reasoning behind trade-offs.",tips:"Sol moves well from wide to deep. Ask for competing options before the final synthesis when the requirements are messy."},
+ sonnet:{role:"a disciplined implementation engineer",style:"Follow the specification closely. Do not expand scope or redesign what was not asked. Flag gaps in the spec instead of guessing.",tips:"Sonnet stays on target best when the target is defined. Spend your effort on a precise spec and acceptance criteria."},
+ grok:{role:"a breadth-first researcher with live web and X access",style:"Search widely using current web and X sources. Prefer many diverse sources over a few familiar ones, and cite what you find.",tips:"Grok shines at scouting. Name the sources it should hit, how recent results must be, and what 'obscure but relevant' means for you."},
+ gemini:{role:"a fast, long-context research and processing assistant",style:"Use the full context you are given. Process all provided material before drawing conclusions, and note where inputs conflict.",tips:"Gemini handles huge and multimodal inputs cheaply. Attach everything relevant up front instead of feeding it piecemeal."},
+ qwen:{role:"a capable long-context engineer and analyst",style:"Work through the full material methodically and keep outputs structured and consistent.",tips:"Qwen is strong on long, multimodal workloads. Give it explicit output structure and it will hold to it across large inputs."},
+ kimi:{role:"a retrieval-focused research scout with very large context",style:"Gather and organize evidence from everything provided. Quote or reference exact locations so findings can be checked.",tips:"Kimi is best as an evidence gatherer. Ask for locations and citations, then hand the synthesis to a deeper model if needed."},
+ glm:{role:"an autonomous long-horizon coding agent",style:"Work iteratively: plan, implement, run, inspect, and repeat until the checks pass. Keep changes small and reviewable.",tips:"GLM is built for long coding loops. Define the loop's exit condition, such as tests passing and lint clean, so it knows when it is finished."},
+ deepseek:{role:"an efficient reasoning and coding worker",style:"Be direct and economical. Solve the stated problem precisely and avoid unnecessary elaboration.",tips:"DeepSeek is a cost-efficient engine. Keep prompts tight and explicit, and review output more carefully than you would a premium model."},
+ nemotron:{role:"an orchestrator, judge and router for agent workflows",style:"Evaluate inputs independently, state confidence, route unclear cases for escalation, and keep the process auditable.",tips:"Nemotron works best as infrastructure. Define the routing rules, the scoring rubric and what should be escalated."}
+};
+
+const questionBank=[
+ {id:"outcome",q:"What does a finished result look like?",hint:"One or two sentences. Example: a merged fix with passing tests and a short write-up of the root cause.",type:"text",when:()=>true},
+ {id:"format",q:"What form should the deliverable take?",hint:"Pick the closest. You can refine wording in the generated prompt.",type:"choice",multi:false,when:()=>true,
+  options:["Code changes with explanation","Written report or memo","Analysis with recommendations","Comparison table or ranked list","Step-by-step plan","Summary with cited sources","Let the model decide"]},
+ {id:"context",q:"What background does the model need?",hint:"Systems, files, prior attempts, who this is for, anything it cannot infer from the task itself.",type:"text",when:()=>true},
+ {id:"constraints",q:"Any hard constraints?",hint:"Things it must do or must never do: languages, budgets, deadlines, style, off-limits areas.",type:"text",when:()=>true},
+ {id:"tools",q:"What will the model have access to?",hint:"Pick everything that applies.",type:"choice",multi:true,when:n=>n.agent>=2||n.code>=2||n.long>=2,
+  options:["The full repository","Ability to run code and tests","Web browsing or search","Uploaded files or documents","A terminal or shell","Nothing beyond this prompt"]},
+ {id:"verify",q:"How should the model verify its work?",hint:"Tests to run, checks to pass, numbers that must reconcile, a reviewer to satisfy.",type:"text",when:n=>n.code>=2||n.agent>=2},
+ {id:"sources",q:"Which sources matter, and how recent do results need to be?",hint:"Sources to prioritize or avoid, and a recency cutoff if one applies.",type:"text",when:n=>n.research>=2||n.breadth>=2},
+ {id:"audience",q:"Who is the audience, and what tone fits?",hint:"Example: a board that wants a decision on one page, or an engineering team that wants detail.",type:"text",when:(n,a)=>/report|memo|analysis|summary|comparison|plan/i.test(a.format||"")||n.research>=2||n.depth>=2},
+ {id:"depth",q:"How thorough should the response be?",hint:"",type:"choice",multi:false,when:()=>true,options:["Concise: decision and key reasons only","Standard: full answer with supporting detail","Exhaustive: leave nothing unexamined"]},
+ {id:"pushback",q:"Should the model challenge your framing if it disagrees?",hint:"",type:"choice",multi:false,when:()=>true,options:["Yes, push back and propose alternatives","Flag concerns briefly, then proceed as asked","No, execute exactly as specified"]}
+];
+
+function activeQuestions(){return questionBank.filter(q=>q.when(pb.rec.n,pb.answers))}
+
+function initPromptBuilder(r){
+ pb.rec=r; pb.answers={}; pb.step=0; pb.target="balanced";
+ $("output").style.display="none";
+ $("prompt").style.display="block";
+ renderTargets(); renderWizard();
+}
+function renderTargets(){
+ $("targets").innerHTML=["balanced","cheap","premium"].map(k=>`<button class="target ${pb.target===k?'on':''}" data-t="${k}"><small>${targetLabels[k]}</small>${esc(pb.rec[k].name)}</button>`).join("");
+ $("targets").querySelectorAll(".target").forEach(b=>b.onclick=()=>{
+   pb.target=b.dataset.t; renderTargets();
+   if($("output").style.display!=="none") renderOutput(); else renderWizard();
+ });
+}
+function renderWizard(){
+ const qs=activeQuestions();
+ if(pb.step>=qs.length){renderOutput();return}
+ const q=qs[pb.step], a=pb.answers[q.id];
+ const field = q.type==="text"
+   ? `<textarea id="wizText" placeholder="Type here, or skip">${esc(a||"")}</textarea>`
+   : `<div class="choices">${q.options.map(o=>`<button class="choice ${(q.multi?(a||[]).includes(o):a===o)?'on':''}" data-o="${esc(o)}">${esc(o)}</button>`).join("")}</div>`;
+ $("wizard").style.display="block";
+ $("wizard").innerHTML=`<div class="progress"><span>Question ${pb.step+1} of ${qs.length}</span><span>Prompt for ${esc(pb.rec[pb.target].name)}</span></div>
+ <div class="progressbar"><i style="width:${(pb.step/qs.length)*100}%"></i></div>
+ <div class="q">${q.q}</div>${q.hint?`<div class="qhint">${q.hint}</div>`:'<div style="height:12px"></div>'}${field}
+ <div class="wizctl"><div>${pb.step>0?'<button class="ghost" id="wizBack">Back</button>':''}<button class="ghost" id="wizSkipAll">Skip to prompt</button></div>
+ <div><button class="ghost" id="wizSkip">Skip</button><button class="primary" id="wizNext">${pb.step===qs.length-1?'Generate prompt':'Next'}</button></div></div>`;
+ const save=()=>{if(q.type==="text"){const v=$("wizText").value.trim(); if(v) pb.answers[q.id]=v; else delete pb.answers[q.id]}};
+ if(q.type==="text"){const t=$("wizText"); t.focus(); t.onkeydown=e=>{if(e.key==="Enter"&&(e.ctrlKey||e.metaKey)) $("wizNext").click()}}
+ else $("wizard").querySelectorAll(".choice").forEach(b=>b.onclick=()=>{
+   const o=b.dataset.o;
+   if(q.multi){const cur=new Set(pb.answers[q.id]||[]); cur.has(o)?cur.delete(o):cur.add(o); pb.answers[q.id]=[...cur]}
+   else pb.answers[q.id]=o;
+   renderWizard();
+ });
+ $("wizNext").onclick=()=>{save(); pb.step++; renderWizard()};
+ $("wizSkip").onclick=()=>{delete pb.answers[q.id]; pb.step++; renderWizard()};
+ $("wizSkipAll").onclick=()=>{save(); pb.step=activeQuestions().length; renderWizard()};
+ if($("wizBack")) $("wizBack").onclick=()=>{save(); pb.step--; renderWizard()};
+}
+function buildPrompt(m,g){
+ const a=pb.answers, n=pb.rec.n, task=$("task").value.trim();
+ const L=[];
+ L.push("# Role", `You are ${g.role}. ${g.style}`, "");
+ L.push("# Task", task);
+ if(a.outcome) L.push("", `A finished result looks like this: ${a.outcome}`);
+ L.push("");
+ if(a.context) L.push("# Context", a.context, "");
+ L.push("# Deliverable");
+ L.push(a.format && a.format!=="Let the model decide" ? `Format: ${a.format}.` : "Format: choose the form that best fits the task and say briefly why.");
+ const depthMap={Concise:"Keep it concise: lead with the decision or result and the few reasons that matter.",Standard:"Give a complete answer with the supporting detail needed to act on it.",Exhaustive:"Be exhaustive: examine every relevant angle and make the reasoning fully traceable."};
+ const dkey=Object.keys(depthMap).find(k=>(a.depth||"").startsWith(k));
+ L.push(depthMap[dkey||"Standard"]);
+ if(a.audience) L.push(`Audience and tone: ${a.audience}`);
+ L.push("");
+ const cons=[];
+ if(a.constraints) cons.push(a.constraints);
+ if(a.tools&&a.tools.length){
+   if(a.tools.includes("Nothing beyond this prompt")) cons.push("You have no tools or external access beyond this prompt. State clearly anything you would need to check but cannot.");
+   else cons.push(`You have access to: ${a.tools.join(", ").toLowerCase()}. Use them rather than guessing.`);
+ }
+ if(a.sources) cons.push(`Sources and recency: ${a.sources}`);
+ if(a.pushback){
+   if(a.pushback.startsWith("Yes")) cons.push("If you believe the framing or approach is wrong, say so plainly and propose an alternative before proceeding.");
+   else if(a.pushback.startsWith("Flag")) cons.push("If you have concerns about the approach, flag them briefly, then proceed as asked.");
+   else cons.push("Execute exactly as specified. Do not redesign or expand the scope.");
+ }
+ if(cons.length){L.push("# Constraints"); cons.forEach(c=>L.push(`- ${c}`)); L.push("")}
+ const ap=[];
+ if(n.breadth>=2||n.research>=2) ap.push("Start wide: gather candidates and evidence from diverse sources before narrowing.");
+ if(n.depth>=2) ap.push("Identify root causes and test competing explanations rather than accepting the first plausible answer.");
+ if(n.code>=2) ap.push("Read the relevant code before changing it. Keep changes minimal, explain each one, and preserve behavior you were not asked to change.");
+ if(n.agent>=2) ap.push("Work step by step. After each significant step, check the result before continuing, and do not stop until the deliverable is complete or you are genuinely blocked.");
+ if(n.long>=2) ap.push("Process all provided material before concluding. Note gaps, duplicates and contradictions explicitly.");
+ if(n.multi>=2) ap.push("Treat images, tables and documents as primary evidence and reference the exact item you are drawing from.");
+ if(n.discipline>=2) ap.push("Follow the specification precisely. Where it is silent, choose the simplest conventional option and note it.");
+ if(!ap.length) ap.push("Plan briefly, then execute. Prefer clarity and correctness over breadth.");
+ L.push("# Approach"); ap.forEach(x=>L.push(`- ${x}`)); L.push("");
+ L.push("# Verification");
+ L.push(a.verify || "Before finishing, check your own work against the task and the deliverable definition above. State what you verified and what you could not.");
+ L.push("");
+ L.push("# Output");
+ L.push("Lead with the result. Then give the reasoning or changes, then open questions and anything you assumed. If something in this prompt is ambiguous, state your interpretation and proceed, unless proceeding would be unsafe or wasteful.");
+ return L.join("\n");
+}
+function renderOutput(){
+ $("wizard").style.display="none";
+ const m=pb.rec[pb.target], g=modelGuidance[m.id]||{role:"an expert assistant",style:"Work carefully and completely.",tips:"Edit the text above freely before copying."};
+ $("outTitle").textContent=`Prompt for ${m.name} · ${targetLabels[pb.target]}`;
+ $("promptOut").value=buildPrompt(m,g);
+ $("tips").innerHTML=`<b>Using this with ${esc(m.name)}:</b> ${esc(g.tips)} You can edit the prompt above before copying.`;
+ $("output").style.display="block";
+ $("output").scrollIntoView({behavior:"smooth",block:"nearest"});
+}
+$("copyPrompt").onclick=async()=>{
+ const t=$("promptOut");
+ try{ await navigator.clipboard.writeText(t.value) }
+ catch(e){ t.focus(); t.select(); document.execCommand("copy"); t.setSelectionRange(0,0); t.blur() }
+ const c=$("copied"); c.classList.add("show"); clearTimeout(pb.ct); pb.ct=setTimeout(()=>c.classList.remove("show"),1800);
+};
+$("editAnswers").onclick=()=>{pb.step=0; $("output").style.display="none"; renderWizard(); $("wizard").scrollIntoView({behavior:"smooth",block:"nearest"})};
 </script>
 </body>
 </html>
