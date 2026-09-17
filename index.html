@@ -1,0 +1,315 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>AI Model Practical Map — September 2026</title>
+<style>
+:root{
+  --bg:#07111f; --panel:#0d1b2d; --panel2:#101f33; --ink:#ecf4ff; --muted:#93a8c2;
+  --line:#213651; --cyan:#67e8f9; --blue:#7aa2ff; --green:#73e2a7; --amber:#f3c969;
+  --pink:#f29bd3; --red:#ff8c8c; --purple:#b79cff; --shadow:0 20px 60px rgba(0,0,0,.35);
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{
+  margin:0;background:
+  radial-gradient(1000px 600px at 10% -10%,rgba(103,232,249,.12),transparent 55%),
+  radial-gradient(900px 500px at 100% 0%,rgba(183,156,255,.10),transparent 58%),var(--bg);
+  color:var(--ink);font-family:Inter,ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;
+}
+.wrap{max-width:1260px;margin:auto;padding:28px 22px 70px}
+.hero{padding:34px 0 22px;display:grid;grid-template-columns:1.5fr .7fr;gap:26px;align-items:end}
+.eyebrow{font-size:12px;text-transform:uppercase;letter-spacing:.16em;color:var(--cyan);font-weight:800}
+h1{font-size:clamp(38px,6vw,78px);line-height:.94;margin:10px 0 18px;letter-spacing:-.055em}
+.sub{font-size:18px;color:#b9c9db;line-height:1.55;max-width:780px}
+.stamp{justify-self:end;text-align:right;color:var(--muted);font-size:13px}
+.stamp strong{display:block;color:var(--ink);font-size:15px}
+.nav{position:sticky;top:0;z-index:20;backdrop-filter:blur(16px);background:rgba(7,17,31,.82);border-top:1px solid var(--line);border-bottom:1px solid var(--line);margin:0 -22px 30px;padding:10px 22px}
+.navin{max-width:1260px;margin:auto;display:flex;gap:8px;flex-wrap:wrap}
+.nav a{color:#b8cae0;text-decoration:none;font-size:13px;padding:7px 10px;border-radius:999px}
+.nav a:hover{background:#14263d;color:white}
+.grid{display:grid;gap:16px}
+.kpis{grid-template-columns:repeat(4,1fr);margin:18px 0 34px}
+.card{background:linear-gradient(180deg,rgba(16,31,51,.94),rgba(11,25,42,.96));border:1px solid var(--line);border-radius:18px;box-shadow:var(--shadow)}
+.kpi{padding:18px}.kpi .n{font-size:29px;font-weight:850;letter-spacing:-.04em}.kpi .l{font-size:12px;color:var(--muted);margin-top:3px}
+.section{margin-top:48px}
+.section h2{font-size:28px;margin:0 0 9px;letter-spacing:-.03em}.section .intro{color:var(--muted);max-width:880px;line-height:1.55;margin-bottom:20px}
+.legend{display:flex;gap:10px;flex-wrap:wrap;margin:16px 0}
+.pill{font-size:12px;border:1px solid var(--line);border-radius:999px;padding:6px 9px;color:#c3d2e3;background:#0b1829}
+.models{grid-template-columns:repeat(2,minmax(0,1fr))}
+.model{padding:20px;position:relative;overflow:hidden}
+.model:before{content:"";position:absolute;inset:0 auto 0 0;width:3px;background:var(--accent,var(--blue))}
+.modeltop{display:flex;justify-content:space-between;gap:14px;align-items:start}
+.name{font-size:21px;font-weight:850;letter-spacing:-.025em}.vendor{color:var(--muted);font-size:12px;margin-top:3px}
+.price{text-align:right;font-size:12px;color:var(--muted);white-space:nowrap}.price strong{font-size:14px;color:var(--ink)}
+.desc{color:#b8c8da;line-height:1.5;font-size:14px;margin:13px 0 14px}
+.bars{display:grid;grid-template-columns:84px 1fr 22px;gap:6px 8px;align-items:center;font-size:11px;color:var(--muted)}
+.bar{height:6px;background:#162940;border-radius:99px;overflow:hidden}.bar>i{display:block;height:100%;width:calc(var(--v)*10%);background:var(--accent,var(--blue));border-radius:99px}
+.tags{display:flex;gap:6px;flex-wrap:wrap;margin-top:15px}.tag{font-size:10px;padding:5px 7px;border-radius:6px;background:#12263d;color:#b9cae0;border:1px solid #203752}
+.bestfor{margin-top:13px;padding-top:12px;border-top:1px solid var(--line);font-size:12px;color:#aabdd2}.bestfor b{color:white}
+.pricing{overflow:auto}.pricing table{width:100%;border-collapse:collapse;min-width:820px}.pricing th,.pricing td{text-align:left;padding:13px 12px;border-bottom:1px solid var(--line);font-size:13px}.pricing th{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.08em}.pricing td:nth-child(3),.pricing td:nth-child(4),.pricing td:nth-child(5){font-variant-numeric:tabular-nums}
+.note{font-size:12px;color:var(--muted);line-height:1.5;margin-top:11px}
+.builder{padding:22px}
+textarea{width:100%;min-height:130px;resize:vertical;background:#071522;border:1px solid #2a4565;border-radius:14px;color:white;padding:16px;font:inherit;font-size:16px;line-height:1.5;outline:none}
+textarea:focus{border-color:var(--cyan);box-shadow:0 0 0 3px rgba(103,232,249,.08)}
+.controls{display:flex;gap:10px;flex-wrap:wrap;margin:12px 0 4px}
+button{border:0;border-radius:10px;padding:10px 14px;font-weight:750;cursor:pointer;background:#17314d;color:#dcecff}
+button.primary{background:linear-gradient(135deg,#4cc9f0,#7aa2ff);color:#04111e}
+button:hover{filter:brightness(1.08)}
+.presets{display:flex;gap:7px;flex-wrap:wrap;margin-top:14px}.preset{font-size:11px;padding:7px 9px;background:#0b1a2b;border:1px solid var(--line)}
+.results{grid-template-columns:repeat(3,1fr);margin-top:18px;display:none}
+.rec{padding:18px;min-height:270px;position:relative}
+.rank{font-size:11px;text-transform:uppercase;letter-spacing:.12em;color:var(--cyan);font-weight:800}
+.rec h3{font-size:23px;margin:8px 0 6px;letter-spacing:-.03em}.why{font-size:13px;color:#b8c8da;line-height:1.5}
+.score{font-size:38px;font-weight:900;letter-spacing:-.05em;margin:14px 0 0}.score span{font-size:12px;color:var(--muted);font-weight:600;letter-spacing:0}
+.rec .cost{font-size:12px;color:var(--green);margin-top:4px}
+.details{margin-top:12px;padding-top:12px;border-top:1px solid var(--line);font-size:11px;color:var(--muted);line-height:1.55}
+.signals{display:flex;gap:6px;flex-wrap:wrap;margin:13px 0 0}.signal{font-size:10px;background:#10253c;border:1px solid #24405e;padding:4px 6px;border-radius:5px;color:#bdd0e4}
+.method{padding:20px}.methodgrid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-top:14px}.methoditem{padding:14px;background:#0a1727;border:1px solid var(--line);border-radius:12px}.methoditem b{font-size:13px}.methoditem p{font-size:11px;color:var(--muted);line-height:1.45;margin:5px 0 0}
+.flow{display:grid;grid-template-columns:1fr auto 1fr auto 1fr auto 1fr;gap:12px;align-items:center;margin-top:18px}.flowbox{padding:18px;text-align:center;background:#0b192a;border:1px solid var(--line);border-radius:14px}.flowbox b{display:block;font-size:15px}.flowbox span{display:block;font-size:11px;color:var(--muted);margin-top:5px}.arrow{color:var(--cyan);font-weight:900}
+.sources{padding:20px}.sources a{color:#9ed9ff}.sources li{margin:8px 0;color:#aebfd2;font-size:12px;line-height:1.4}
+.footer{margin-top:40px;border-top:1px solid var(--line);padding-top:18px;color:#7189a5;font-size:11px}
+@media(max-width:900px){.hero{grid-template-columns:1fr}.stamp{justify-self:start;text-align:left}.kpis{grid-template-columns:repeat(2,1fr)}.models{grid-template-columns:1fr}.results{grid-template-columns:1fr}.methodgrid{grid-template-columns:repeat(2,1fr)}.flow{grid-template-columns:1fr}.arrow{transform:rotate(90deg);text-align:center}}
+@media(max-width:520px){.kpis,.methodgrid{grid-template-columns:1fr}h1{font-size:45px}.wrap{padding-left:14px;padding-right:14px}.nav{margin-left:-14px;margin-right:-14px}}
+</style>
+</head>
+<body>
+<div class="wrap">
+<section class="hero">
+  <div>
+    <div class="eyebrow">Vision document · practical model selection</div>
+    <h1>The AI Model<br/>Practical Map</h1>
+    <div class="sub">Choose models by the shape of the work—not by a single leaderboard. This map separates <b>breadth</b>, <b>depth</b>, <b>agentic execution</b>, <b>coding discipline</b>, <b>context capacity</b>, and <b>cost</b>, then turns those dimensions into an interactive recommendation.</div>
+  </div>
+  <div class="stamp"><strong>Current view: September 16, 2026</strong>API pricing is volatile. Verify before production budgeting.</div>
+</section>
+
+<div class="nav"><div class="navin">
+<a href="#mental">Mental model</a><a href="#map">Practical map</a><a href="#price">Cost</a><a href="#chooser">Task chooser</a><a href="#stack">Multi-model stack</a><a href="#sources">Sources</a>
+</div></div>
+
+<section id="mental">
+<div class="grid kpis">
+  <div class="card kpi"><div class="n">WIDE</div><div class="l">Explores many hypotheses, sources and paths before committing.</div></div>
+  <div class="card kpi"><div class="n">DEEP</div><div class="l">Stays on one hard problem, tests assumptions and follows it further.</div></div>
+  <div class="card kpi"><div class="n">AGENTIC</div><div class="l">Keeps working through tools, code, browser, files and iterative steps.</div></div>
+  <div class="card kpi"><div class="n">DISCIPLINED</div><div class="l">Follows a defined implementation target without unnecessary branching.</div></div>
+</div>
+</section>
+
+<section class="section" id="map">
+<h2>Current practical map</h2>
+<p class="intro">Scores below are a practical heuristic, not vendor benchmark claims. A 10 means “especially strong for this role.” Search breadth can change dramatically depending on the product harness and available tools.</p>
+<div class="legend"><span class="pill">Breadth = scouts alternatives</span><span class="pill">Depth = hard reasoning</span><span class="pill">Agent = long multi-step work</span><span class="pill">Code = implementation strength</span><span class="pill">Value = capability per dollar</span></div>
+<div class="grid models" id="modelCards"></div>
+</section>
+
+<section class="section" id="price">
+<h2>Cost layer</h2>
+<p class="intro">Standard API list prices where an official, current public price was readily verifiable. “Example request” assumes 100K uncached input tokens + 10K output tokens, excluding tools, search calls, caching, long-context multipliers and plan discounts.</p>
+<div class="card pricing"><table>
+<thead><tr><th>Model</th><th>Provider</th><th>Input / 1M</th><th>Output / 1M</th><th>Example request</th><th>Cost position</th></tr></thead>
+<tbody id="pricingRows"></tbody>
+</table></div>
+<div class="note">Nemotron is commonly self-hosted / deployed through NVIDIA infrastructure, so token cost depends on deployment. GLM-5.3's current flagship pricing was not exposed as a clean per-token figure in the official pages retrieved for this snapshot; its coding plans are subscription/credit based. Kimi’s public help page confirms token billing but routes exact model pricing to its platform pricing table, so this document treats Kimi as a cost tier rather than asserting an unverified token rate.</div>
+</section>
+
+<section class="section" id="chooser">
+<h2>Describe the job. Get three model choices.</h2>
+<p class="intro">This runs entirely in your browser. It uses task signals plus the practical scores above—no API key, no server, and no hidden model call.</p>
+<div class="card builder">
+<textarea id="task" placeholder="Example: I have a 600-file accounting application repo. Find why the reconciliation engine occasionally double-posts, inspect the architecture, fix the bug, run tests, and challenge whether our current design is the right one."></textarea>
+<div class="presets">
+<button class="preset" data-preset="Research 20 current competitors across the web, Reddit and social sources. Find obscure products I probably do not know about, compare their features, and synthesize the market.">Wide research</button>
+<button class="preset" data-preset="Read a very large codebase, find the root cause of an intermittent accounting bug, challenge the architecture, implement a safe fix and verify it with tests.">Deep coding</button>
+<button class="preset" data-preset="Process hundreds of PDFs, spreadsheets and documents, find all evidence related to one issue, reconcile contradictions and produce a concise report.">Huge document set</button>
+<button class="preset" data-preset="Build routine API endpoints and frontend components from a detailed specification. Keep cost low and follow the plan closely.">Routine build</button>
+<button class="preset" data-preset="Analyze a board-level financial problem with incomplete data, generate competing hypotheses, test them, research missing facts, and create a polished decision memo.">Executive analysis</button>
+<button class="preset" data-preset="Run a long-lived multi-agent workflow. Route scout findings, judge conflicting answers, call tools and keep the process reliable at scale.">Agent orchestration</button>
+</div>
+<div class="controls"><button class="primary" id="recommend">Recommend models</button><button id="clear">Clear</button></div>
+</div>
+<div class="grid results" id="results">
+  <div class="card rec" id="cheap"></div>
+  <div class="card rec" id="premium"></div>
+  <div class="card rec" id="balanced"></div>
+</div>
+</section>
+
+<section class="section" id="stack">
+<h2>Vision: stop choosing one “winner”</h2>
+<p class="intro">For serious AI systems, the better architecture is often a portfolio. Let inexpensive or breadth-oriented models gather possibilities, use a deeper model to reason over them, introduce an independent judge, and reserve the most expensive frontier model for the hardest unresolved work.</p>
+<div class="flow">
+  <div class="flowbox"><b>1. Scout wide</b><span>Grok · Gemini · Kimi</span></div><div class="arrow">→</div>
+  <div class="flowbox"><b>2. Analyze deep</b><span>Sol · Opus · Fable</span></div><div class="arrow">→</div>
+  <div class="flowbox"><b>3. Judge / route</b><span>Nemotron · independent frontier model</span></div><div class="arrow">→</div>
+  <div class="flowbox"><b>4. Escalate</b><span>Astra only when warranted</span></div>
+</div>
+<div class="card method" style="margin-top:16px">
+<b>Design principle</b>
+<div class="methodgrid">
+<div class="methoditem"><b>Do not pay premium reasoning prices for retrieval.</b><p>Use lower-cost scouts to collect evidence and candidate paths.</p></div>
+<div class="methoditem"><b>Do not let the scout be the judge.</b><p>Separate generation from evaluation to reduce confirmation loops.</p></div>
+<div class="methoditem"><b>Escalate by uncertainty.</b><p>Route ambiguous, contradictory or high-value cases to deeper models.</p></div>
+<div class="methoditem"><b>Measure cost per completed task.</b><p>Cheap tokens can become expensive when a model needs many retries or tool calls.</p></div>
+</div>
+</div>
+</section>
+
+<section class="section" id="sources">
+<h2>Pricing & capability sources</h2>
+<div class="card sources">
+<ul>
+<li><a href="https://developers.openai.com/api/docs/models/gpt-6-astra" target="_blank">OpenAI — GPT-6 Astra</a>: $10 input / $50 output per 1M tokens; 1.05M context.</li>
+<li><a href="https://developers.openai.com/api/docs/models/gpt-5.6-sol" target="_blank">OpenAI — GPT-5.6 Sol</a>: $4 input / $20 output per 1M tokens; 1.05M context.</li>
+<li><a href="https://www.anthropic.com/news/claude-sonnet-5" target="_blank">Anthropic — Claude Sonnet 5</a>: $2 input / $10 output per 1M tokens.</li>
+<li><a href="https://www.anthropic.com/claude/opus" target="_blank">Anthropic — Claude Opus 5</a>: $5 input / $25 output per 1M tokens.</li>
+<li><a href="https://www.anthropic.com/claude/fable" target="_blank">Anthropic — Claude Fable 5.1</a>: $10 input / $50 output per 1M tokens.</li>
+<li><a href="https://docs.x.ai/developers/models/grok-4.6" target="_blank">xAI — Grok 4.6</a>: $2 input / $6 output per 1M tokens; 500K context; web/X/code tools.</li>
+<li><a href="https://ai.google.dev/gemini-api/docs/latest-model" target="_blank">Google — Gemini 3.8 Flash</a>: introductory $0.75 input / $3.75 output per 1M tokens through year end; 1M context.</li>
+<li><a href="https://www.alibabacloud.com/help/en/model-studio/qwen3-8-max" target="_blank">Alibaba Cloud — Qwen 3.8 Max</a>: US/global list price $1.65 input / $4.951 output per 1M tokens; 1M context.</li>
+<li><a href="https://api-docs.deepseek.com/quick_start/pricing/" target="_blank">DeepSeek — API pricing</a>: current V4 family pricing varies by model and peak/off-peak period.</li>
+<li><a href="https://docs.api.nvidia.com/nim/reference/nvidia-nemotron-3-ultra-550b-a55b" target="_blank">NVIDIA — Nemotron 3 Ultra</a>: up to 1M context; designed for frontier reasoning, complex agentic workflows and high-stakes RAG.</li>
+<li><a href="https://www.kimi.com/en/help/kimi-api/api-pricing" target="_blank">Kimi — API billing guide</a>: token-based billing plus separate web-search charge.</li>
+<li><a href="https://zcode.z.ai/en" target="_blank">Z.ai — GLM / ZCode</a>: current GLM-5.3 coding plans and long-horizon agentic coding positioning.</li>
+</ul>
+</div>
+</section>
+
+<div class="footer">Practical scores are editorial heuristics for model routing, not objective rankings. Model behavior depends on prompting, reasoning effort, tool access, context size and agent harness. Pricing snapshot: September 16, 2026.</div>
+</div>
+
+<script>
+const models = [
+ {id:"astra",name:"GPT-6 Astra",vendor:"OpenAI",color:"#67e8f9",breadth:9.5,depth:10,agent:10,code:9.7,long:10,research:9.5,multi:9.2,discipline:9,value:5.5,input:10,output:50,costTier:5,
+  desc:"Frontier escalation model for the hardest end-to-end work. Broad enough to investigate and deep enough to finish.",best:"Hard end-to-end research, coding, computer use, analysis and finished deliverables.",tags:["frontier","end-to-end","1.05M context","max reasoning"]},
+ {id:"fable",name:"Claude Fable 5.1",vendor:"Anthropic",color:"#b79cff",breadth:7.5,depth:10,agent:9.7,code:9.8,long:10,research:8.2,multi:8.8,discipline:9.1,value:5.7,input:10,output:50,costTier:5,
+  desc:"Deepest Claude tier for ambitious, ambiguous and long-running knowledge or coding problems.",best:"Root-cause analysis, architecture, high-ambiguity coding and difficult multi-step knowledge work.",tags:["deep reasoning","architecture","long horizon","1M class"]},
+ {id:"opus",name:"Claude Opus 5",vendor:"Anthropic",color:"#d1a7ff",breadth:7.5,depth:9.5,agent:9.5,code:9.8,long:10,research:8,multi:8.7,discipline:9.4,value:7.2,input:5,output:25,costTier:4,
+  desc:"Premium daily-driver Claude: careful, persistent and especially strong on difficult coding and professional work.",best:"Production coding, difficult debugging, agents, finance logic and complex documents.",tags:["principal engineer","debugging","agents","1M context"]},
+ {id:"sol",name:"GPT-5.6 Sol",vendor:"OpenAI",color:"#7aa2ff",breadth:9,depth:9.3,agent:9.2,code:9.1,long:10,research:9.2,multi:9.2,discipline:8.8,value:7.8,input:4,output:20,costTier:4,
+  desc:"Versatile professional workhorse: broad exploration followed by strong synthesis and deep reasoning.",best:"Finance, business analysis, research synthesis, coding, messy requirements and second-opinion work.",tags:["wide → deep","professional work","1.05M context","versatile"]},
+ {id:"sonnet",name:"Claude Sonnet 5",vendor:"Anthropic",color:"#c9a1ff",breadth:7,depth:8.7,agent:9.2,code:9.6,long:10,research:7.5,multi:8.5,discipline:9.8,value:9,input:2,output:10,costTier:3,
+  desc:"Disciplined implementation workhorse. Excellent when the target is defined and you want the model to stay on it.",best:"Everyday coding, implementation from specs, agents and reliable execution without premium-model cost.",tags:["workhorse","coding","disciplined","1M context"]},
+ {id:"grok",name:"Grok 4.6",vendor:"xAI",color:"#73e2a7",breadth:10,depth:8.7,agent:9.4,code:9.2,long:8.5,research:10,multi:8.8,discipline:7.8,value:9,input:2,output:6,costTier:2,
+  desc:"Breadth-first frontier model with native web/X search and code execution—excellent for scouting unfamiliar spaces.",best:"Current web/social research, broad discovery, competitive scans, agentic exploration and rapid building.",tags:["widest scout","web + X","500K context","great value"]},
+ {id:"gemini",name:"Gemini 3.8 Flash",vendor:"Google",color:"#f3c969",breadth:9.7,depth:8.2,agent:9.3,code:9,long:10,research:9.8,multi:9.8,discipline:8.5,value:9.6,input:.75,output:3.75,costTier:1,
+  desc:"Fast, inexpensive long-context model with strong multimodal and Google-connected research potential.",best:"High-volume agents, Google/web research, multimodal workflows and cost-sensitive long-context processing.",tags:["1M context","multimodal","fast","low cost"]},
+ {id:"qwen",name:"Qwen 3.8 Max",vendor:"Alibaba",color:"#ffbd7a",breadth:8.8,depth:8.8,agent:9,code:9,long:10,research:8.2,multi:9.5,discipline:8.6,value:9.3,input:1.65,output:4.951,costTier:2,
+  desc:"Strong open-ecosystem / cloud option with one-million-token context and unusually good cost-performance.",best:"Long-context multimodal workloads, agents, coding and cost-sensitive scalable deployments.",tags:["1M context","multimodal","agents","cost efficient"]},
+ {id:"kimi",name:"Kimi K3",vendor:"Moonshot AI",color:"#72d8c6",breadth:9.5,depth:8.9,agent:9.2,code:9,long:10,research:9.4,multi:8.9,discipline:8.2,value:8.7,input:null,output:null,costTier:2,
+  desc:"A strong retrieval and long-context scout, especially compelling when you have enormous repositories or document sets.",best:"Huge-context retrieval, large repos, evidence gathering and research scouting.",tags:["huge context","retrieval","research scout","agentic"]},
+ {id:"glm",name:"GLM-5.3",vendor:"Z.ai",color:"#f29bd3",breadth:8,depth:8.8,agent:9.5,code:9.5,long:9.7,research:7.8,multi:8.7,discipline:9,value:9.1,input:null,output:null,costTier:2,
+  desc:"Engineering-oriented long-horizon agent model that is particularly interesting for autonomous coding economics.",best:"Long-running coding agents, repo work, iterative implementation and lower-cost engineering automation.",tags:["autonomous engineer","coding","long horizon","open ecosystem"]},
+ {id:"deepseek",name:"DeepSeek V4 family",vendor:"DeepSeek",color:"#9bb6ff",breadth:7.7,depth:9,agent:8.8,code:9.3,long:8.5,research:7.5,multi:7.3,discipline:9,value:9.8,input:.3,output:1.2,costTier:1,
+  desc:"Extremely aggressive reasoning/coding economics. Best treated as a cost-efficient engine where product polish is secondary.",best:"High-volume coding and reasoning, inexpensive agent workers and self-managed infrastructure.",tags:["lowest cost tier","reasoning","coding","worker model"]},
+ {id:"nemotron",name:"Nemotron 3 Ultra",vendor:"NVIDIA",color:"#9fe870",breadth:8.4,depth:9,agent:9.8,code:8.7,long:10,research:8.8,multi:7.8,discipline:9.2,value:7.5,input:null,output:null,costTier:3,
+  desc:"Think of it less as a chat favorite and more as infrastructure: reasoning, orchestration, routing and high-stakes RAG.",best:"Agent manager/judge/router, enterprise orchestration, self-hosted RAG and long-context evidence synthesis.",tags:["orchestrator","judge","1M context","self-host"]},
+];
+
+function bar(label,v){return `<span>${label}</span><span class="bar"><i style="--v:${v}"></i></span><b>${v.toFixed(1)}</b>`}
+document.getElementById("modelCards").innerHTML = models.map(m=>`
+<div class="card model" style="--accent:${m.color}">
+ <div class="modeltop"><div><div class="name">${m.name}</div><div class="vendor">${m.vendor}</div></div>
+ <div class="price">${m.input!=null?`<strong>$${m.input} / $${m.output}</strong><br/>in / out per 1M`:`<strong>Variable</strong><br/>see provider`}</div></div>
+ <div class="desc">${m.desc}</div>
+ <div class="bars">${bar("Breadth",m.breadth)}${bar("Depth",m.depth)}${bar("Agent",m.agent)}${bar("Coding",m.code)}${bar("Value",m.value)}</div>
+ <div class="tags">${m.tags.map(t=>`<span class="tag">${t}</span>`).join("")}</div>
+ <div class="bestfor"><b>Best for:</b> ${m.best}</div>
+</div>`).join("");
+
+function exampleCost(m){
+ if(m.input==null) return "Variable";
+ return "$"+(m.input*.1 + m.output*.01).toFixed(3);
+}
+document.getElementById("pricingRows").innerHTML=models.map(m=>`
+<tr><td><b>${m.name}</b></td><td>${m.vendor}</td><td>${m.input==null?"—":"$"+m.input.toFixed(m.input<1?2:2)}</td><td>${m.output==null?"—":"$"+m.output.toFixed(m.output<1?2:2)}</td><td>${exampleCost(m)}</td><td>${["","Very low","Low","Moderate","Premium","Frontier premium"][m.costTier]}</td></tr>`).join("");
+
+const patterns = {
+ breadth:["research","search","competitor","market","discover","find options","brainstorm","current","web","reddit","social","news","sources","unfamiliar","obscure"],
+ depth:["root cause","hard","difficult","ambiguous","challenge","architecture","why","reason","contradiction","diagnose","complex","strategy","decision","high stakes","prove","deep"],
+ agent:["agent","autonomous","workflow","tools","execute","run tests","browser","computer","multi-step","long-running","end-to-end","build and","implement","fix","deploy","iterate"],
+ code:["code","repo","repository","bug","debug","api","frontend","backend","software","program","function","test","github","architecture","developer","coding"],
+ long:["hundreds","thousands","large repo","many files","all files","pdf","documents","spreadsheets","1m","million token","entire codebase","600-file","huge","long context"],
+ research:["research","web","current","latest","market","competitor","reddit","social","sources","news","evidence","find"],
+ multi:["image","video","pdf","chart","screenshot","visual","multimodal","photo","spreadsheet","slides","document"],
+ discipline:["spec","defined","routine","follow","exact","requirements","implementation","keep cost low","straightforward"]
+};
+function signal(text,arr){let n=0;arr.forEach(k=>{if(text.includes(k)) n++});return Math.min(10,n*2.2)}
+function needs(text){
+ let n={};
+ for(const [k,v] of Object.entries(patterns)) n[k]=signal(text,v);
+ if(text.length>550){n.depth=Math.max(n.depth,5);n.agent=Math.max(n.agent,4)}
+ if(n.code>4){n.discipline=Math.max(n.discipline,4)}
+ if(n.long>3){n.long=Math.max(n.long,7)}
+ if(n.research>3){n.breadth=Math.max(n.breadth,6)}
+ return n;
+}
+function capability(m,n){
+ const base = 0.8;
+ let weights={breadth:1,depth:1,agent:.8,code:.7,long:.5,research:.7,multi:.45,discipline:.45};
+ let sum=0, den=0;
+ for(const k of Object.keys(weights)){
+   const need=Math.max(base,n[k]||0);
+   sum += m[k]*need*weights[k];
+   den += need*weights[k];
+ }
+ return sum/den;
+}
+function matchSignals(n){
+ return Object.entries(n).filter(x=>x[1]>=3.5).sort((a,b)=>b[1]-a[1]).slice(0,6).map(([k])=>k);
+}
+function capableThreshold(n){ return (n.depth>=7 || n.agent>=7 || n.code>=7)?7.8:7.25; }
+function recommend(text){
+ const n=needs(text.toLowerCase());
+ const scored=models.map(m=>{
+   const cap=capability(m,n);
+   const balanced=cap*.78+m.value*.22;
+   const cheapScore=cap*0.67+m.value*0.33;
+   return {...m,cap,balanced,cheapScore}
+ }).sort((a,b)=>b.cap-a.cap);
+ const threshold=capableThreshold(n);
+ const capable=scored.filter(x=>x.cap>=threshold);
+ const cheap=(capable.length?capable:scored).slice().sort((a,b)=>{
+   if(a.costTier!==b.costTier) return a.costTier-b.costTier;
+   return b.cheapScore-a.cheapScore;
+ })[0];
+ const premium=scored[0];
+ const balanced=scored.slice().sort((a,b)=>b.balanced-a.balanced)[0];
+ return {cheap,premium,balanced,n};
+}
+function explain(m,n,type){
+ const sig=matchSignals(n);
+ const labels={breadth:"wide search",depth:"deep reasoning",agent:"agentic execution",code:"coding",long:"long context",research:"live research",multi:"multimodal",discipline:"spec discipline"};
+ const strengths=sig.filter(k=>m[k]>=8.8).slice(0,3).map(k=>labels[k]);
+ let lead= type==="cheap" ? "Lowest-cost tier among models that clear the capability threshold for this task." :
+           type==="premium" ? "Highest capability match when price is ignored." :
+           "Best balance of capability and cost-efficiency for repeated practical use.";
+ if(strengths.length) lead += " Particularly strong for "+strengths.join(", ")+".";
+ return lead;
+}
+function renderRec(el,title,m,n,type){
+ const sig=matchSignals(n);
+ const labels={breadth:"breadth",depth:"depth",agent:"agentic",code:"coding",long:"long context",research:"research",multi:"multimodal",discipline:"discipline"};
+ const cost=m.input!=null?`API: $${m.input}/M input · $${m.output}/M output · example ${exampleCost(m)}`:`Pricing: provider/deployment dependent`;
+ el.innerHTML=`<div class="rank">${title}</div><h3>${m.name}</h3><div class="why">${explain(m,n,type)}</div>
+ <div class="score">${m.cap.toFixed(1)}<span> / 10 capability match</span></div><div class="cost">${cost}</div>
+ <div class="signals">${sig.map(s=>`<span class="signal">${labels[s]} need ${n[s].toFixed(0)}/10</span>`).join("") || '<span class="signal">general-purpose task</span>'}</div>
+ <div class="details"><b>Why this model:</b> ${m.best}<br/><b>Practical caveat:</b> Recommendation is heuristic; final performance depends on tool access, prompting, reasoning effort and the surrounding agent harness.</div>`;
+}
+document.getElementById("recommend").onclick=()=>{
+ const text=document.getElementById("task").value.trim();
+ if(!text){document.getElementById("task").focus();return}
+ const r=recommend(text);
+ renderRec(document.getElementById("cheap"),"01 · Cheapest that should get it done",r.cheap,r.n,"cheap");
+ renderRec(document.getElementById("premium"),"02 · Best regardless of price",r.premium,r.n,"premium");
+ renderRec(document.getElementById("balanced"),"03 · Best practical overall",r.balanced,r.n,"balanced");
+ document.getElementById("results").style.display="grid";
+ document.getElementById("results").scrollIntoView({behavior:"smooth",block:"nearest"});
+};
+document.getElementById("clear").onclick=()=>{document.getElementById("task").value="";document.getElementById("results").style.display="none"};
+document.querySelectorAll(".preset").forEach(b=>b.onclick=()=>{document.getElementById("task").value=b.dataset.preset;document.getElementById("recommend").click()});
+</script>
+</body>
+</html>
