@@ -95,6 +95,40 @@ button.ghost{background:transparent;border:1px solid var(--line);color:#b8cae0}
 .output textarea{min-height:380px;font-size:13px;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;line-height:1.55}
 .copied{color:var(--green);font-size:12px;font-weight:700;opacity:0;transition:opacity .2s}.copied.show{opacity:1}
 .tips{margin-top:12px;font-size:12px;color:#aabdd2;line-height:1.55}.tips b{color:white}
+.subsintro{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;align-items:end;margin-top:22px}
+.subsintro .rank{color:var(--green)}
+.subsintro p{margin:4px 0 0;color:var(--muted);font-size:12px;line-height:1.5;max-width:640px}
+.subs{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:12px}
+.sub{padding:16px;background:#0a1727;border:1px solid var(--line);border-radius:14px}
+.subhead{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap}
+.subhead b{font-size:15px;letter-spacing:-.01em}
+.subhead small{display:block;font-size:10px;text-transform:uppercase;letter-spacing:.1em;color:var(--muted);font-weight:800;margin-top:2px}
+.plansel{display:flex;gap:5px;flex-wrap:wrap;align-items:center}
+.plansel span{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;font-weight:800;margin-right:2px}
+.plan{font-size:10px;padding:5px 8px;background:#0b1a2b;border:1px solid var(--line);color:#b8cae0;font-weight:700;border-radius:8px}
+.plan.on{border-color:var(--cyan);background:#10283f;color:white}
+.cx{margin-top:12px;font-size:11px;color:var(--muted);display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.cx .bar{flex:1;min-width:90px;height:6px}
+.cx .bar>i{background:linear-gradient(90deg,#73e2a7,#f3c969,#ff8c8c)}
+.cx b{color:white}
+.ladder{display:grid;gap:6px;margin-top:12px;align-content:start}
+.sub{display:flex;flex-direction:column}.sub .grow{flex:1;min-height:12px}.sub .verdict{margin-top:0}
+.rung{display:grid;grid-template-columns:1fr auto;gap:4px 10px;align-items:center;padding:9px 11px;border:1px solid var(--line);border-radius:10px;background:#0b1a2b;text-align:left;color:#c3d2e3;font-weight:600;font-size:12px;cursor:pointer}
+.rung .rn{font-weight:750;color:white}
+.rung .rd{grid-column:1/-1;font-size:11px;color:var(--muted);font-weight:500;line-height:1.45}
+.rung .badge{font-size:9px;text-transform:uppercase;letter-spacing:.1em;font-weight:800;padding:3px 6px;border-radius:5px;border:1px solid var(--line);color:var(--muted);white-space:nowrap}
+.rung.isrec{border-color:var(--green)}.rung.isrec .badge{border-color:var(--green);color:var(--green)}
+.rung.fallback .badge{border-color:var(--amber);color:var(--amber)}
+.rung.locked{opacity:.62}.rung.locked .badge{border-color:var(--red);color:var(--red)}
+.rung.on{background:#10283f;box-shadow:0 0 0 3px rgba(103,232,249,.10);border-color:var(--cyan)}
+.verdict{margin-top:12px;padding:11px 12px;border-radius:10px;font-size:12px;line-height:1.5;background:#0b1a2b;border:1px solid var(--line);color:#c3d2e3}
+.verdict b{color:white}
+.verdict .vt{display:inline-block;font-size:9px;text-transform:uppercase;letter-spacing:.12em;font-weight:800;padding:3px 7px;border-radius:5px;margin-bottom:7px}
+.verdict.yes .vt{background:rgba(115,226,167,.15);color:var(--green)}
+.verdict.maybe .vt{background:rgba(243,201,105,.15);color:var(--amber)}
+.verdict.no .vt{background:#14263d;color:#b8cae0}
+.fb{margin-top:10px;font-size:11px;color:#aabdd2;line-height:1.5}.fb b{color:var(--amber)}
+@media(max-width:900px){.subs{grid-template-columns:1fr}}
 @media(max-width:900px){.hero{grid-template-columns:1fr}.stamp{justify-self:start;text-align:left}.kpis{grid-template-columns:repeat(2,1fr)}.models{grid-template-columns:1fr}.results{grid-template-columns:1fr}.methodgrid{grid-template-columns:repeat(2,1fr)}.flow{grid-template-columns:1fr}.arrow{transform:rotate(90deg);text-align:center}}
 @media(max-width:520px){.kpis,.methodgrid{grid-template-columns:1fr}h1{font-size:45px}.wrap{padding-left:14px;padding-right:14px}.nav{margin-left:-14px;margin-right:-14px}}
 </style>
@@ -167,6 +201,10 @@ button.ghost{background:transparent;border:1px solid var(--line);color:#b8cae0}
     <h3>Turn the job into a prompt for the recommended model</h3>
     <p>Answer a few short questions, or skip any you like. The builder combines your answers with the task description and writes a structured prompt tuned to the model you pick below.</p>
   </div>
+  <div class="subsintro">
+    <div><div class="rank">Subscriptions you already pay for</div><p>ChatGPT and Claude are always available here. For each one the map picks the tier that fits this job, names the fallback when the top tier is out of reach or out of quota, and says whether a higher plan would actually pay off for work like this. Set your plan once; it is remembered in this browser.</p></div>
+  </div>
+  <div class="subs" id="subs"></div>
   <div class="targets" id="targets"></div>
   <div class="wizard" id="wizard"></div>
   <div class="output" id="output" style="display:none">
@@ -220,6 +258,8 @@ button.ghost{background:transparent;border:1px solid var(--line);color:#b8cae0}
 <li><a href="https://docs.api.nvidia.com/nim/reference/nvidia-nemotron-3-ultra-550b-a55b" target="_blank">NVIDIA — Nemotron 3 Ultra</a>: up to 1M context; designed for frontier reasoning, complex agentic workflows and high-stakes RAG.</li>
 <li><a href="https://www.kimi.com/en/help/kimi-api/api-pricing" target="_blank">Kimi — API billing guide</a>: token-based billing plus separate web-search charge.</li>
 <li><a href="https://zcode.z.ai/en" target="_blank">Z.ai — GLM / ZCode</a>: current GLM-5.3 coding plans and long-horizon agentic coding positioning.</li>
+<li><a href="https://help.openai.com/en/articles/20001354-gpt-56-in-chatgpt" target="_blank">OpenAI Help Center — GPT-5.6 and GPT-6 Pro in ChatGPT</a>: Plus gets Sol in chat and Astra inside Codex / Work; Astra in chat and GPT-6 Pro mode require Pro ($100: 50 GPT-6 Pro messages/week; $200: 200/week). Checked September 2026.</li>
+<li><a href="https://usagebar.com/blog/claude-weekly-limit-all-models-explained" target="_blank">Claude plan limits (third-party summary)</a> and <a href="https://ai.zenken.co.jp/en/post/claude-max-plan-guide/" target="_blank">Claude Max plan guide</a>: Pro includes Sonnet 5 and Opus 5 under 5-hour and weekly caps; Max $100 / $200 raise the caps; Fable-tier access has appeared only on Max and has been withdrawn before. Checked September 2026.</li>
 </ul>
 </div>
 </section>
@@ -360,10 +400,132 @@ document.getElementById("clear").onclick=()=>{document.getElementById("task").va
 document.querySelectorAll(".preset").forEach(b=>b.onclick=()=>{document.getElementById("task").value=b.dataset.preset;document.getElementById("recommend").click()});
 
 /* ---------- Step 2: prompt builder ---------- */
-const pb={rec:null,target:"balanced",answers:{},step:0,ct:null};
+const pb={rec:null,target:"balanced",answers:{},step:0,ct:null,plans:null,subs:null};
 const $=id=>document.getElementById(id);
 function esc(s){return String(s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]))}
 const targetLabels={cheap:"Cheapest that works",premium:"Best regardless of price",balanced:"Best practical overall"};
+
+/* ---------- Subscriptions the user already pays for ---------- */
+const subs={
+ chatgpt:{name:"ChatGPT",vendor:"OpenAI",ladder:["sol","astra"],
+   plans:[{id:"plus",label:"Plus $20"},{id:"pro100",label:"Pro $100"},{id:"pro200",label:"Pro $200"}],
+   tierNote:{sol:"Everyday model on every plan. Wide-to-deep reasoning, strong on messy requirements.",
+             astra:"Top tier. On Plus it only appears inside Codex and Work mode; regular chat needs Pro, which also unlocks the weekly-capped GPT-6 Pro mode."}},
+ claude:{name:"Claude",vendor:"Anthropic",ladder:["sonnet","opus","fable"],
+   plans:[{id:"pro",label:"Pro $20"},{id:"max100",label:"Max $100"},{id:"max200",label:"Max $200"}],
+   tierNote:{sonnet:"Default on every plan. Disciplined and cheap on quota; ideal when the target is defined.",
+             opus:"Included on Pro and Max. Deeper and more persistent, but drains the 5-hour window several times faster than Sonnet.",
+             fable:"Not on Pro. Has been offered on Max and withdrawn before, so check the model picker. Reserve for ambiguous, high-stakes, long-horizon work."}}
+};
+/* access(planId, tierId) → "yes" | "partial" | "no" */
+function access(s,plan,tier){
+ if(s==="claude"){ if(tier==="fable") return plan==="pro"?"no":"partial"; return "yes"; }
+ if(s==="chatgpt"){ if(tier==="astra") return plan==="plus"?"partial":"yes"; return "yes"; }
+ return "yes";
+}
+const stakesWords=["board","executive","financial","finance","hypothes","incomplete","ambiguous","strategy","high stakes","root cause","architecture","intermittent","reconcile","contradict","prove","novel","legal","tax","audit","medical","security","migration","production","mission critical"];
+function complexity(n,text){
+ const w=.4*n.depth+.25*n.agent+.15*n.code+.1*n.long+.15*n.breadth;
+ let st=0; stakesWords.forEach(k=>{if(text.includes(k)) st++});
+ const stakes=Math.min(7.5,st*2);
+ return Math.min(10,Math.max(w,n.depth*.85,stakes));
+}
+function heavyLoad(n,text){ return n.agent>=4||n.long>=4||text.length>550; }
+function cxBand(c){ return c>=6?"high":c>=3?"mid":"low"; }
+function cxLabel(c){ return c>=6?"Hard, ambiguous or high-stakes":c>=3?"Real reasoning, bounded scope":"Routine or well-defined"; }
+function loadPlans(){ const d={chatgpt:"plus",claude:"pro"}; try{ return Object.assign(d,JSON.parse(localStorage.getItem("pm_plans")||"{}")) }catch(e){ return d } }
+function savePlans(){ try{ localStorage.setItem("pm_plans",JSON.stringify(pb.plans)) }catch(e){} }
+
+function planSubs(r,text){
+ const c=complexity(r.n,text), band=cxBand(c), heavy=heavyLoad(r.n,text);
+ const out={complexity:c,band,heavy,items:{}};
+ for(const [s,def] of Object.entries(subs)){
+   const tiers=def.ladder.map(id=>{const m=models.find(x=>x.id===id); return {...m,cap:capability(m,r.n)}});
+   const top=tiers.length-1;
+   let idx = band==="high"?top : band==="mid"?Math.min(1,top) : 0;
+   /* ChatGPT has two rungs: Sol covers low and mid; Astra only for the high band. */
+   if(s==="chatgpt") idx = band==="high"?1:0;
+   /* If the rung below is within a hair of the recommended one for this task's shape, take the cheaper rung on quota. */
+   if(idx>0 && tiers[idx].cap-tiers[idx-1].cap<0.12 && band!=="high") idx--;
+   const plan=pb.plans[s];
+   const rec=tiers[idx];
+   let reachIdx=idx; while(reachIdx>0 && access(s,plan,tiers[reachIdx].id)==="no") reachIdx--;
+   const pick=tiers[reachIdx];
+   const fallback=tiers[Math.max(0,reachIdx-1)];
+   out.items[s]={tiers,rec,pick,fallback,plan,recAccess:access(s,plan,rec.id),verdict:verdict(s,plan,rec,pick,band,heavy,r.n)};
+ }
+ return out;
+}
+function verdict(s,plan,rec,pick,band,heavy,n){
+ const codey=n.code>=4||n.agent>=4;
+ if(s==="claude"){
+   if(rec.id==="sonnet") return {k:"no",t:"No upgrade needed",b:"Sonnet 5 is on every plan and is the right tool for a well-defined job like this. Pro's allowance covers it comfortably; spend Opus quota elsewhere."};
+   if(rec.id==="opus"){
+     if(plan!=="pro") return {k:"no",t:"You already have the right plan",b:"Opus 5 is the fit here and your Max plan gives it room to run. Use Sonnet 5 for the routine parts to stretch the window."};
+     return heavy
+      ? {k:"maybe",t:"Worth considering Max $100",b:"Opus 5 is included on Pro, but a long agentic or large-context run like this can burn most of a 5-hour window in one sitting. If you do work at this level more than a couple of times a week, Max $100 pays for itself in fewer stalls. For a one-off, stay on Pro and fall back to Sonnet 5 if you hit the cap."}
+      : {k:"no",t:"Not for this task",b:"Pro includes Opus 5, and a bounded job like this fits inside the normal allowance. Upgrade only if you find yourself waiting on the 5-hour reset most days."};
+   }
+   /* fable */
+   if(plan==="pro") return {k:"yes",t:"Upgrade is the only in-app route, with a caveat",b:"This job is in Fable 5.1 territory and Fable is not offered on Pro. Max is the only plan that has carried Fable-tier access, and Anthropic has offered and withdrawn it before, so confirm it is in the model picker before paying. Reliable alternative today: Opus 5 with the exhaustive-depth setting in this prompt, or the API at $10 / $50 per 1M tokens."};
+   return {k:"maybe",t:"Use Fable if your picker shows it",b:"You are already on the highest plan. If Fable 5.1 is available to you right now, use it for this; if not, Opus 5 at exhaustive depth is the fallback and there is nothing further to upgrade to in the app."};
+ }
+ /* chatgpt */
+ if(rec.id==="sol") return {k:"no",t:"No upgrade needed",b:"GPT-5.6 Sol is the everyday model on every plan and handles this well. Save Astra quota for work that is genuinely ambiguous."};
+ if(plan==="plus"){
+   return codey
+    ? {k:"maybe",t:"Plus already covers this, via Codex",b:"GPT-6 Astra is included on Plus inside Codex and Work mode, and that is the natural home for a coding or agentic job like this. Run it there and skip the upgrade unless you are hitting the 5-hour cap most days. Pro $100 only adds Astra in the regular chat window plus a weekly GPT-6 Pro allowance."}
+    : {k:"yes",t:"Worth upgrading if this is weekly work",b:"This job wants GPT-6 Astra, and on Plus it is only reachable inside Codex and Work mode, not the regular chat window. Pro $100 unlocks Astra in chat and 50 GPT-6 Pro messages a week. Worth it if you do analysis at this level every week; for a one-off, use Sol and ask for competing options before the final answer, or run it through Work mode."};
+ }
+ return {k:"no",t:"You already have the right plan",b:`Astra is in your chat window. For the hardest version of this job, GPT-6 Pro mode is the top rung, but it is capped weekly (${plan==="pro200"?"200":"50"} messages on your plan), so spend it on the parts that actually need it and let Astra or Sol handle the rest.`};
+}
+function renderSubs(){
+ const S=pb.subs; if(!S) return;
+ $("subs").innerHTML=Object.entries(subs).map(([s,def])=>{
+   const it=S.items[s];
+   const rungs=it.tiers.slice().reverse().map(m=>{
+     const acc=access(s,it.plan,m.id);
+     const isRec=m.id===it.rec.id, isPick=m.id===it.pick.id, isFb=m.id===it.fallback.id&&it.tiers.length>1&&!isPick;
+     const cls=["rung", isRec&&acc!=="no"?"isrec":"", isFb?"fallback":"", acc==="no"?"locked":"", pb.target===`m:${s}:${m.id}`?"on":""].join(" ");
+     const badge = acc==="no" ? "Not on your plan" : isRec ? "Use this" : (isPick&&!isRec) ? "Best you can reach" : isFb ? "Fallback" : acc==="partial" ? "Limited access" : "Available";
+     return `<button class="${cls}" data-t="m:${s}:${m.id}"><span class="rn">${esc(m.name)} <span style="color:var(--muted);font-weight:600">· ${m.cap.toFixed(1)} match</span></span><span class="badge">${badge}</span><span class="rd">${esc(def.tierNote[m.id])}</span></button>`;
+   }).join("");
+   const fb = it.fallback.id!==it.pick.id
+     ? `<div class="fb"><b>If ${esc(it.pick.name)} is out of reach right now:</b> use ${esc(it.fallback.name)}. Give it a tighter spec, ask it to state assumptions before starting, and have it verify its own result at the end. Expect it to need a second pass on the hardest parts.</div>`
+     : `<div class="fb"><b>Fallback:</b> ${esc(it.pick.name)} is already the lightest tier here. If you are out of quota, wait for the reset or switch to the other subscription.</div>`;
+   const lockedNote = it.recAccess==="no" ? `<div class="fb"><b>Note:</b> the ideal tier is ${esc(it.rec.name)}, which your plan does not include, so the prompt targets ${esc(it.pick.name)} instead.</div>` : "";
+   return `<div class="sub" data-s="${s}">
+     <div class="subhead"><div><b>${def.name}</b><small>${def.vendor} · you pay for this</small></div>
+       <div class="plansel"><span>My plan</span>${def.plans.map(p=>`<button class="plan ${it.plan===p.id?'on':''}" data-p="${p.id}">${p.label}</button>`).join("")}</div></div>
+     <div class="cx"><span>Task complexity</span><span class="bar"><i style="--v:${S.complexity.toFixed(1)}"></i></span><b>${S.complexity.toFixed(1)} / 10</b><span>· ${cxLabel(S.complexity)}${S.heavy?" · heavy on quota":""}</span></div>
+     <div class="ladder">${rungs}</div>
+     ${lockedNote}${fb}
+     <div class="grow"></div>
+     <div class="verdict ${it.verdict.k}"><span class="vt">Upgrade worth it? ${it.verdict.k==="yes"?"Yes":it.verdict.k==="maybe"?"Depends":"No"}</span><br/><b>${esc(it.verdict.t)}.</b> ${esc(it.verdict.b)}</div>
+   </div>`;
+ }).join("");
+ $("subs").querySelectorAll(".plan").forEach(b=>b.onclick=()=>{
+   const s=b.closest(".sub").dataset.s; pb.plans[s]=b.dataset.p; savePlans();
+   pb.subs=planSubs(pb.rec,$("task").value.trim().toLowerCase());
+   if(pb.target===s||pb.target.startsWith(`m:${s}:`)) pb.target=s;
+   renderSubs(); renderTargets();
+   if($("output").style.display!=="none") renderOutput(); else renderWizard();
+ });
+ $("subs").querySelectorAll(".rung").forEach(b=>b.onclick=()=>{
+   pb.target=b.dataset.t; renderSubs(); renderTargets();
+   if($("output").style.display!=="none") renderOutput(); else renderWizard();
+ });
+}
+function resolveTarget(){
+ const t=pb.target;
+ if(targetLabels[t]) return {m:pb.rec[t],label:targetLabels[t]};
+ if(subs[t]) return {m:pb.subs.items[t].pick,label:"Your "+subs[t].name};
+ if(t.startsWith("m:")){
+   const [,s,id]=t.split(":"); const it=pb.subs.items[s]; const m=it.tiers.find(x=>x.id===id);
+   return {m,label:"Your "+subs[s].name+(id===it.pick.id?"":id===it.fallback.id?" · fallback":" · alternate tier")};
+ }
+ return {m:pb.rec.balanced,label:targetLabels.balanced};
+}
 
 const modelGuidance={
  astra:{role:"a frontier-level analyst and engineer",style:"Take the full problem end to end. Investigate broadly first, then commit to the strongest path and finish the deliverable completely.",tips:"Astra handles very long, open-ended work well. Give it the whole job in one prompt rather than splitting it, and say clearly when it should stop and report back."},
@@ -399,16 +561,25 @@ function activeQuestions(){return questionBank.filter(q=>q.when(pb.rec.n,pb.answ
 
 function initPromptBuilder(r){
  pb.rec=r; pb.answers={}; pb.step=0; pb.target="balanced";
+ if(!pb.plans) pb.plans=loadPlans();
+ pb.subs=planSubs(r,$("task").value.trim().toLowerCase());
  $("output").style.display="none";
  $("prompt").style.display="block";
- renderTargets(); renderWizard();
+ renderSubs(); renderTargets(); renderWizard();
 }
 function renderTargets(){
- $("targets").innerHTML=["balanced","cheap","premium"].map(k=>`<button class="target ${pb.target===k?'on':''}" data-t="${k}"><small>${targetLabels[k]}</small>${esc(pb.rec[k].name)}</button>`).join("");
+ const subOn=k=>pb.target===k||pb.target.startsWith(`m:${k}:`);
+ $("targets").innerHTML=["balanced","cheap","premium"].map(k=>`<button class="target ${pb.target===k?'on':''}" data-t="${k}"><small>${targetLabels[k]}</small>${esc(pb.rec[k].name)}</button>`).join("")
+  + Object.keys(subs).map(k=>`<button class="target ${subOn(k)?'on':''}" data-t="${k}"><small>Your ${subs[k].name}</small>${esc(resolveTargetFor(k).name)}</button>`).join("");
  $("targets").querySelectorAll(".target").forEach(b=>b.onclick=()=>{
-   pb.target=b.dataset.t; renderTargets();
+   pb.target=b.dataset.t; renderTargets(); renderSubs();
    if($("output").style.display!=="none") renderOutput(); else renderWizard();
  });
+}
+/* Name to show on a subscription target chip: the chosen rung if one is selected, else the reachable pick. */
+function resolveTargetFor(k){
+ if(pb.target.startsWith(`m:${k}:`)) return resolveTarget().m;
+ return pb.subs.items[k].pick;
 }
 function renderWizard(){
  const qs=activeQuestions();
@@ -418,7 +589,7 @@ function renderWizard(){
    ? `<textarea id="wizText" placeholder="Type here, or skip">${esc(a||"")}</textarea>`
    : `<div class="choices">${q.options.map(o=>`<button class="choice ${(q.multi?(a||[]).includes(o):a===o)?'on':''}" data-o="${esc(o)}">${esc(o)}</button>`).join("")}</div>`;
  $("wizard").style.display="block";
- $("wizard").innerHTML=`<div class="progress"><span>Question ${pb.step+1} of ${qs.length}</span><span>Prompt for ${esc(pb.rec[pb.target].name)}</span></div>
+ $("wizard").innerHTML=`<div class="progress"><span>Question ${pb.step+1} of ${qs.length}</span><span>Prompt for ${esc(resolveTarget().m.name)}</span></div>
  <div class="progressbar"><i style="width:${(pb.step/qs.length)*100}%"></i></div>
  <div class="q">${q.q}</div>${q.hint?`<div class="qhint">${q.hint}</div>`:'<div style="height:12px"></div>'}${field}
  <div class="wizctl"><div>${pb.step>0?'<button class="ghost" id="wizBack">Back</button>':''}<button class="ghost" id="wizSkipAll">Skip to prompt</button></div>
@@ -483,10 +654,17 @@ function buildPrompt(m,g){
 }
 function renderOutput(){
  $("wizard").style.display="none";
- const m=pb.rec[pb.target], g=modelGuidance[m.id]||{role:"an expert assistant",style:"Work carefully and completely.",tips:"Edit the text above freely before copying."};
- $("outTitle").textContent=`Prompt for ${m.name} · ${targetLabels[pb.target]}`;
+ const rt=resolveTarget(), m=rt.m, g=modelGuidance[m.id]||{role:"an expert assistant",style:"Work carefully and completely.",tips:"Edit the text above freely before copying."};
+ $("outTitle").textContent=`Prompt for ${m.name} · ${rt.label}`;
  $("promptOut").value=buildPrompt(m,g);
- $("tips").innerHTML=`<b>Using this with ${esc(m.name)}:</b> ${esc(g.tips)} You can edit the prompt above before copying.`;
+ let extra="";
+ if(rt.label.startsWith("Your ")){
+   const s=rt.label.includes("ChatGPT")?"chatgpt":"claude", it=pb.subs.items[s];
+   if(m.id===it.fallback.id&&it.fallback.id!==it.pick.id) extra=` <b>Fallback tier:</b> this prompt is tuned for ${esc(m.name)} standing in for ${esc(it.pick.name)}. It already asks for stated assumptions and self-verification; review the hardest parts yourself.`;
+   else if(s==="chatgpt"&&m.id==="astra"&&it.plan==="plus") extra=` <b>Where to run it:</b> on Plus, Astra is available inside Codex and Work mode, not the regular chat window.`;
+   else if(s==="claude"&&m.id==="fable") extra=` <b>Where to run it:</b> Fable-tier access lives on Max only when Anthropic offers it in the app; if it is missing from your picker, switch the target to Opus 5.`;
+ }
+ $("tips").innerHTML=`<b>Using this with ${esc(m.name)}:</b> ${esc(g.tips)}${extra} You can edit the prompt above before copying.`;
  $("output").style.display="block";
  $("output").scrollIntoView({behavior:"smooth",block:"nearest"});
 }
