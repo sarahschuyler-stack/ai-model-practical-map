@@ -22,9 +22,12 @@ body{
 .hero{padding:34px 0 22px;display:grid;grid-template-columns:1.5fr .7fr;gap:26px;align-items:end}
 .eyebrow{font-size:12px;text-transform:uppercase;letter-spacing:.16em;color:var(--cyan);font-weight:800}
 h1{font-size:clamp(38px,6vw,78px);line-height:.94;margin:10px 0 18px;letter-spacing:-.055em}
-.sub{font-size:18px;color:#b9c9db;line-height:1.55;max-width:780px}
 .stamp{justify-self:end;text-align:right;color:var(--muted);font-size:13px}
 .stamp strong{display:block;color:var(--ink);font-size:15px}
+.stamp .stampacts{display:flex;gap:8px;justify-content:flex-end;align-items:center;flex-wrap:wrap;margin-top:9px}
+.stamp .stamped{font-size:11px;color:var(--green);font-weight:700}
+.nav + .section{margin-top:0}
+#mental{margin-top:48px}
 .nav{position:sticky;top:0;z-index:20;backdrop-filter:blur(16px);background:rgba(7,17,31,.82);border-top:1px solid var(--line);border-bottom:1px solid var(--line);margin:0 -22px 30px;padding:10px 22px}
 .navin{max-width:1260px;margin:auto;display:flex;gap:8px;flex-wrap:wrap}
 .nav a{color:#b8cae0;text-decoration:none;font-size:13px;padding:7px 10px;border-radius:999px}
@@ -99,7 +102,7 @@ button.ghost{background:transparent;border:1px solid var(--line);color:#b8cae0}
 .subsintro .rank{color:var(--green)}
 .subsintro p{margin:4px 0 0;color:var(--muted);font-size:12px;line-height:1.5;max-width:640px}
 .subs{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:12px}
-.sub{padding:16px;background:#0a1727;border:1px solid var(--line);border-radius:14px}
+.subcard{padding:16px;background:#0a1727;border:1px solid var(--line);border-radius:14px}
 .subhead{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap}
 .subhead b{font-size:15px;letter-spacing:-.01em}
 .subhead small{display:block;font-size:10px;text-transform:uppercase;letter-spacing:.1em;color:var(--muted);font-weight:800;margin-top:2px}
@@ -112,7 +115,7 @@ button.ghost{background:transparent;border:1px solid var(--line);color:#b8cae0}
 .cx .bar>i{background:linear-gradient(90deg,#73e2a7,#f3c969,#ff8c8c)}
 .cx b{color:white}
 .ladder{display:grid;gap:6px;margin-top:12px;align-content:start}
-.sub{display:flex;flex-direction:column}.sub .grow{flex:1;min-height:12px}.sub .verdict{margin-top:0}
+.subcard{display:flex;flex-direction:column}.subcard .grow{flex:1;min-height:12px}.subcard .verdict{margin-top:0}
 .rung{display:grid;grid-template-columns:1fr auto;gap:4px 10px;align-items:center;padding:9px 11px;border:1px solid var(--line);border-radius:10px;background:#0b1a2b;text-align:left;color:#c3d2e3;font-weight:600;font-size:12px;cursor:pointer}
 .rung .rn{font-weight:750;color:white}
 .rung .rd{grid-column:1/-1;font-size:11px;color:var(--muted);font-weight:500;line-height:1.45}
@@ -128,8 +131,43 @@ button.ghost{background:transparent;border:1px solid var(--line);color:#b8cae0}
 .verdict.maybe .vt{background:rgba(243,201,105,.15);color:var(--amber)}
 .verdict.no .vt{background:#14263d;color:#b8cae0}
 .fb{margin-top:10px;font-size:11px;color:#aabdd2;line-height:1.5}.fb b{color:var(--amber)}
+/* ---------- Recheck panel ---------- */
+.rc{padding:22px;margin:0 0 34px;display:none}
+.rchead{display:flex;justify-content:space-between;gap:12px;align-items:start;flex-wrap:wrap}
+.rchead h3{margin:6px 0 4px;font-size:23px;letter-spacing:-.03em}
+.rchead p{margin:0;color:var(--muted);font-size:13px;line-height:1.5;max-width:720px}
+.rcmodes{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:16px}
+.rcmode{padding:16px;background:#0a1727;border:1px solid var(--line);border-radius:14px}
+.rcmode b{font-size:14px}.rcmode p{margin:5px 0 12px;font-size:12px;color:var(--muted);line-height:1.5}
+.rcrow{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:8px}
+.rcrow input[type=password],.rcrow input[type=text]{flex:1;min-width:180px;background:#071522;border:1px solid #2a4565;border-radius:10px;color:white;padding:9px 12px;font:inherit;font-size:13px;outline:none}
+.rcrow input:focus{border-color:var(--cyan)}
+.rcrow select{background:#071522;border:1px solid #2a4565;border-radius:10px;color:white;padding:9px 10px;font:inherit;font-size:13px}
+.rcrow label{font-size:11px;color:var(--muted);display:flex;gap:5px;align-items:center}
+.rcmode textarea{min-height:110px;font-size:12px;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;margin-top:8px}
+.rcstatus{margin-top:12px;font-size:12px;color:var(--muted);line-height:1.5;min-height:18px}
+.rcstatus.err{color:var(--red)}.rcstatus.ok{color:var(--green)}
+.rcresults{margin-top:18px;display:none}
+.rcbar{display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:10px}
+.rcbar .rank{color:var(--green)}
+.rcbar p{margin:3px 0 0;font-size:12px;color:var(--muted)}
+.changes{display:grid;gap:8px}
+.change{display:grid;grid-template-columns:auto 1fr;gap:6px 12px;padding:12px 14px;border:1px solid var(--line);border-radius:12px;background:#0b1a2b;cursor:pointer}
+.change.on{border-color:var(--cyan);background:#10283f;box-shadow:0 0 0 3px rgba(103,232,249,.10)}
+.change input{margin-top:3px;accent-color:#67e8f9}
+.change .ct{display:flex;gap:8px;flex-wrap:wrap;align-items:center;font-size:13px;font-weight:700}
+.change .kind{font-size:9px;text-transform:uppercase;letter-spacing:.12em;font-weight:800;padding:3px 7px;border-radius:5px;border:1px solid var(--line);color:var(--muted)}
+.change .kind.price{border-color:var(--green);color:var(--green)}.change .kind.capability{border-color:var(--purple);color:var(--purple)}.change .kind.functionality{border-color:var(--amber);color:var(--amber)}.change .kind.new-model{border-color:var(--cyan);color:var(--cyan)}
+.change .cs{grid-column:2;font-size:12px;color:#b8c8da;line-height:1.5}
+.change .cm{grid-column:2;font-size:11px;color:var(--muted);display:flex;gap:10px;flex-wrap:wrap}
+.change .cm a{color:#9ed9ff}
+.change .cm .noapply{color:var(--amber)}
+.rcacts{display:flex;gap:8px;flex-wrap:wrap;justify-content:space-between;margin-top:14px}
+.rcacts div{display:flex;gap:8px;flex-wrap:wrap}
+.rcnotes li{margin:8px 0;color:#aebfd2;font-size:12px;line-height:1.4}
+@media(max-width:900px){.rcmodes{grid-template-columns:1fr}}
 @media(max-width:900px){.subs{grid-template-columns:1fr}}
-@media(max-width:900px){.hero{grid-template-columns:1fr}.stamp{justify-self:start;text-align:left}.kpis{grid-template-columns:repeat(2,1fr)}.models{grid-template-columns:1fr}.results{grid-template-columns:1fr}.methodgrid{grid-template-columns:repeat(2,1fr)}.flow{grid-template-columns:1fr}.arrow{transform:rotate(90deg);text-align:center}}
+@media(max-width:900px){.hero{grid-template-columns:1fr}.stamp{justify-self:start;text-align:left}.stamp .stampacts{justify-content:flex-start}.kpis{grid-template-columns:repeat(2,1fr)}.models{grid-template-columns:1fr}.results{grid-template-columns:1fr}.methodgrid{grid-template-columns:repeat(2,1fr)}.flow{grid-template-columns:1fr}.arrow{transform:rotate(90deg);text-align:center}}
 @media(max-width:520px){.kpis,.methodgrid{grid-template-columns:1fr}h1{font-size:45px}.wrap{padding-left:14px;padding-right:14px}.nav{margin-left:-14px;margin-right:-14px}}
 </style>
 </head>
@@ -139,44 +177,52 @@ button.ghost{background:transparent;border:1px solid var(--line);color:#b8cae0}
   <div>
     <div class="eyebrow">Vision document · practical model selection</div>
     <h1>The AI Model<br/>Practical Map</h1>
-    <div class="sub">Choose models by the shape of the work—not by a single leaderboard. This map separates <b>breadth</b>, <b>depth</b>, <b>agentic execution</b>, <b>coding discipline</b>, <b>context capacity</b>, and <b>cost</b>, then turns those dimensions into an interactive recommendation.</div>
   </div>
-  <div class="stamp"><strong>Current view: September 16, 2026</strong>API pricing is volatile. Verify before production budgeting.</div>
+  <div class="stamp"><strong id="viewDate">Current view: September 16, 2026</strong>API pricing is volatile. Verify before production budgeting.
+    <div class="stampacts"><span class="stamped" id="stamped"></span><button class="ghost" id="recheck" title="Search for the latest pricing, capability and functionality changes">Recheck</button></div>
+  </div>
 </section>
 
 <div class="nav"><div class="navin">
-<a href="#mental">Mental model</a><a href="#map">Practical map</a><a href="#price">Cost</a><a href="#chooser">Task chooser</a><a href="#stack">Multi-model stack</a><a href="#sources">Sources</a>
+<a href="#chooser">Task chooser</a><a href="#mental">Mental model</a><a href="#map">Practical map</a><a href="#price">Cost</a><a href="#stack">Multi-model stack</a><a href="#sources">Sources</a>
 </div></div>
 
-<section id="mental">
-<div class="grid kpis">
-  <div class="card kpi"><div class="n">WIDE</div><div class="l">Explores many hypotheses, sources and paths before committing.</div></div>
-  <div class="card kpi"><div class="n">DEEP</div><div class="l">Stays on one hard problem, tests assumptions and follows it further.</div></div>
-  <div class="card kpi"><div class="n">AGENTIC</div><div class="l">Keeps working through tools, code, browser, files and iterative steps.</div></div>
-  <div class="card kpi"><div class="n">DISCIPLINED</div><div class="l">Follows a defined implementation target without unnecessary branching.</div></div>
+<div class="card rc" id="rc">
+  <div class="rchead">
+    <div>
+      <div class="rank">Recheck · bring the map up to date</div>
+      <h3>Search for what changed since this view</h3>
+      <p>Have an AI search the web for the most recent changes in price, capabilities and functionality for the models on this map. Review the findings, tick the ones you want, and apply them. The map and the “Current view” date update to the date the information was checked through. Applied changes are remembered in this browser only.</p>
+    </div>
+    <button class="ghost" id="rcClose">Close</button>
+  </div>
+  <div class="rcmodes">
+    <div class="rcmode">
+      <b>Option A · Search now with Claude</b>
+      <p>Calls the Claude API directly from this page with web search. Your key goes straight to Anthropic and nowhere else; it is only stored in this browser if you tick “remember”.</p>
+      <div class="rcrow"><input type="password" id="rcKey" placeholder="Anthropic API key (sk-ant-…)" autocomplete="off" spellcheck="false"/>
+        <select id="rcModel"><option value="claude-opus-5">Claude Opus 5</option><option value="claude-fable-5-1">Claude Fable 5.1</option><option value="claude-sonnet-5">Claude Sonnet 5</option></select></div>
+      <div class="rcrow"><label><input type="checkbox" id="rcRemember"/> Remember key in this browser</label><button class="primary" id="rcRun">Run recheck</button></div>
+    </div>
+    <div class="rcmode">
+      <b>Option B · Use an AI you already pay for</b>
+      <p>No key needed. Copy the recheck prompt into ChatGPT, Claude, Gemini or Grok with web search on, then paste the JSON it returns here.</p>
+      <div class="rcrow"><button id="rcCopyPrompt">Copy recheck prompt</button><span class="copied" id="rcCopied">Copied to clipboard</span></div>
+      <textarea id="rcPaste" placeholder="Paste the JSON result here" spellcheck="false"></textarea>
+      <div class="rcrow"><button class="primary" id="rcLoad">Load results</button></div>
+    </div>
+  </div>
+  <div class="rcstatus" id="rcStatus"></div>
+  <div class="rcresults" id="rcResults">
+    <div class="rcbar"><div><div class="rank" id="rcFound"></div><p id="rcThrough"></p></div><div><button class="ghost" id="rcAll">Select all</button><button class="ghost" id="rcNone">Select none</button></div></div>
+    <div class="changes" id="changes"></div>
+    <div class="rcacts"><div><button class="ghost" id="rcReset">Reset to published snapshot</button></div><div><button class="primary" id="rcApply">Apply selected and update Current view</button></div></div>
+  </div>
 </div>
-</section>
-
-<section class="section" id="map">
-<h2>Current practical map</h2>
-<p class="intro">Scores below are a practical heuristic, not vendor benchmark claims. A 10 means “especially strong for this role.” Search breadth can change dramatically depending on the product harness and available tools.</p>
-<div class="legend"><span class="pill">Breadth = scouts alternatives</span><span class="pill">Depth = hard reasoning</span><span class="pill">Agent = long multi-step work</span><span class="pill">Code = implementation strength</span><span class="pill">Value = capability per dollar</span></div>
-<div class="grid models" id="modelCards"></div>
-</section>
-
-<section class="section" id="price">
-<h2>Cost layer</h2>
-<p class="intro">Standard API list prices where an official, current public price was readily verifiable. “Example request” assumes 100K uncached input tokens + 10K output tokens, excluding tools, search calls, caching, long-context multipliers and plan discounts.</p>
-<div class="card pricing"><table>
-<thead><tr><th>Model</th><th>Provider</th><th>Input / 1M</th><th>Output / 1M</th><th>Example request</th><th>Cost position</th></tr></thead>
-<tbody id="pricingRows"></tbody>
-</table></div>
-<div class="note">Nemotron is commonly self-hosted / deployed through NVIDIA infrastructure, so token cost depends on deployment. GLM-5.3's current flagship pricing was not exposed as a clean per-token figure in the official pages retrieved for this snapshot; its coding plans are subscription/credit based. Kimi’s public help page confirms token billing but routes exact model pricing to its platform pricing table, so this document treats Kimi as a cost tier rather than asserting an unverified token rate.</div>
-</section>
 
 <section class="section" id="chooser">
 <h2>Describe the job. Get three model choices.</h2>
-<p class="intro">This runs entirely in your browser. It uses task signals plus the practical scores above—no API key, no server, and no hidden model call.</p>
+<p class="intro">This runs entirely in your browser. It uses task signals plus the practical scores below—no API key, no server, and no hidden model call.</p>
 <div class="card builder">
 <div class="rank" style="margin-bottom:10px">Step 1 · Describe the job</div>
 <textarea id="task" placeholder="Example: I have a 600-file accounting application repo. Find why the reconciliation engine occasionally double-posts, inspect the architecture, fix the bug, run tests, and challenge whether our current design is the right one."></textarea>
@@ -222,6 +268,32 @@ button.ghost{background:transparent;border:1px solid var(--line);color:#b8cae0}
 </div>
 </section>
 
+<section id="mental">
+<div class="grid kpis">
+  <div class="card kpi"><div class="n">WIDE</div><div class="l">Explores many hypotheses, sources and paths before committing.</div></div>
+  <div class="card kpi"><div class="n">DEEP</div><div class="l">Stays on one hard problem, tests assumptions and follows it further.</div></div>
+  <div class="card kpi"><div class="n">AGENTIC</div><div class="l">Keeps working through tools, code, browser, files and iterative steps.</div></div>
+  <div class="card kpi"><div class="n">DISCIPLINED</div><div class="l">Follows a defined implementation target without unnecessary branching.</div></div>
+</div>
+</section>
+
+<section class="section" id="map">
+<h2>Current practical map</h2>
+<p class="intro">Scores below are a practical heuristic, not vendor benchmark claims. A 10 means “especially strong for this role.” Search breadth can change dramatically depending on the product harness and available tools.</p>
+<div class="legend"><span class="pill">Breadth = scouts alternatives</span><span class="pill">Depth = hard reasoning</span><span class="pill">Agent = long multi-step work</span><span class="pill">Code = implementation strength</span><span class="pill">Value = capability per dollar</span></div>
+<div class="grid models" id="modelCards"></div>
+</section>
+
+<section class="section" id="price">
+<h2>Cost layer</h2>
+<p class="intro">Standard API list prices where an official, current public price was readily verifiable. “Example request” assumes 100K uncached input tokens + 10K output tokens, excluding tools, search calls, caching, long-context multipliers and plan discounts.</p>
+<div class="card pricing"><table>
+<thead><tr><th>Model</th><th>Provider</th><th>Input / 1M</th><th>Output / 1M</th><th>Example request</th><th>Cost position</th></tr></thead>
+<tbody id="pricingRows"></tbody>
+</table></div>
+<div class="note">Nemotron is commonly self-hosted / deployed through NVIDIA infrastructure, so token cost depends on deployment. GLM-5.3's current flagship pricing was not exposed as a clean per-token figure in the official pages retrieved for this snapshot; its coding plans are subscription/credit based. Kimi’s public help page confirms token billing but routes exact model pricing to its platform pricing table, so this document treats Kimi as a cost tier rather than asserting an unverified token rate.</div>
+</section>
+
 <section class="section" id="stack">
 <h2>Vision: stop choosing one “winner”</h2>
 <p class="intro">For serious AI systems, the better architecture is often a portfolio. Let inexpensive or breadth-oriented models gather possibilities, use a deeper model to reason over them, introduce an independent judge, and reserve the most expensive frontier model for the hardest unresolved work.</p>
@@ -261,10 +333,11 @@ button.ghost{background:transparent;border:1px solid var(--line);color:#b8cae0}
 <li><a href="https://help.openai.com/en/articles/20001354-gpt-56-in-chatgpt" target="_blank">OpenAI Help Center — GPT-5.6 and GPT-6 Pro in ChatGPT</a>: Plus gets Sol in chat and Astra inside Codex / Work; Astra in chat and GPT-6 Pro mode require Pro ($100: 50 GPT-6 Pro messages/week; $200: 200/week). Checked September 2026.</li>
 <li><a href="https://usagebar.com/blog/claude-weekly-limit-all-models-explained" target="_blank">Claude plan limits (third-party summary)</a> and <a href="https://ai.zenken.co.jp/en/post/claude-max-plan-guide/" target="_blank">Claude Max plan guide</a>: Pro includes Sonnet 5 and Opus 5 under 5-hour and weekly caps; Max $100 / $200 raise the caps; Fable-tier access has appeared only on Max and has been withdrawn before. Checked September 2026.</li>
 </ul>
+<div id="rcNotesWrap" style="display:none"><b>Applied by Recheck</b><ul class="rcnotes" id="rcNotes"></ul></div>
 </div>
 </section>
 
-<div class="footer">Practical scores are editorial heuristics for model routing, not objective rankings. Model behavior depends on prompting, reasoning effort, tool access, context size and agent harness. Pricing snapshot: September 16, 2026.</div>
+<div class="footer">Practical scores are editorial heuristics for model routing, not objective rankings. Model behavior depends on prompting, reasoning effort, tool access, context size and agent harness. Pricing snapshot: <span id="footDate">September 16, 2026</span>.</div>
 </div>
 
 <script>
@@ -295,8 +368,14 @@ const models = [
   desc:"Think of it less as a chat favorite and more as infrastructure: reasoning, orchestration, routing and high-stakes RAG.",best:"Agent manager/judge/router, enterprise orchestration, self-hosted RAG and long-context evidence synthesis.",tags:["orchestrator","judge","1M context","self-host"]},
 ];
 
+/* The published snapshot. Recheck (at the bottom of this script) replays applied changes on top of a copy of this,
+   so the cards, pricing table and chooser all read from the same live `models` array. */
+const PUBLISHED_AS_OF="2026-09-16";
+const publishedModels=JSON.parse(JSON.stringify(models));
+
 function bar(label,v){return `<span>${label}</span><span class="bar"><i style="--v:${v}"></i></span><b>${v.toFixed(1)}</b>`}
-document.getElementById("modelCards").innerHTML = models.map(m=>`
+function renderModels(){
+ document.getElementById("modelCards").innerHTML = models.map(m=>`
 <div class="card model" style="--accent:${m.color}">
  <div class="modeltop"><div><div class="name">${m.name}</div><div class="vendor">${m.vendor}</div></div>
  <div class="price">${m.input!=null?`<strong>$${m.input} / $${m.output}</strong><br/>in / out per 1M`:`<strong>Variable</strong><br/>see provider`}</div></div>
@@ -305,13 +384,16 @@ document.getElementById("modelCards").innerHTML = models.map(m=>`
  <div class="tags">${m.tags.map(t=>`<span class="tag">${t}</span>`).join("")}</div>
  <div class="bestfor"><b>Best for:</b> ${m.best}</div>
 </div>`).join("");
+}
 
 function exampleCost(m){
  if(m.input==null) return "Variable";
  return "$"+(m.input*.1 + m.output*.01).toFixed(3);
 }
-document.getElementById("pricingRows").innerHTML=models.map(m=>`
+function renderPricing(){
+ document.getElementById("pricingRows").innerHTML=models.map(m=>`
 <tr><td><b>${m.name}</b></td><td>${m.vendor}</td><td>${m.input==null?"—":"$"+m.input.toFixed(m.input<1?2:2)}</td><td>${m.output==null?"—":"$"+m.output.toFixed(m.output<1?2:2)}</td><td>${exampleCost(m)}</td><td>${["","Very low","Low","Moderate","Premium","Frontier premium"][m.costTier]}</td></tr>`).join("");
+}
 
 const patterns = {
  breadth:["research","search","competitor","market","discover","find options","brainstorm","current","web","reddit","social","news","sources","unfamiliar","obscure"],
@@ -494,7 +576,7 @@ function renderSubs(){
      ? `<div class="fb"><b>If ${esc(it.pick.name)} is out of reach right now:</b> use ${esc(it.fallback.name)}. Give it a tighter spec, ask it to state assumptions before starting, and have it verify its own result at the end. Expect it to need a second pass on the hardest parts.</div>`
      : `<div class="fb"><b>Fallback:</b> ${esc(it.pick.name)} is already the lightest tier here. If you are out of quota, wait for the reset or switch to the other subscription.</div>`;
    const lockedNote = it.recAccess==="no" ? `<div class="fb"><b>Note:</b> the ideal tier is ${esc(it.rec.name)}, which your plan does not include, so the prompt targets ${esc(it.pick.name)} instead.</div>` : "";
-   return `<div class="sub" data-s="${s}">
+   return `<div class="subcard" data-s="${s}">
      <div class="subhead"><div><b>${def.name}</b><small>${def.vendor} · you pay for this</small></div>
        <div class="plansel"><span>My plan</span>${def.plans.map(p=>`<button class="plan ${it.plan===p.id?'on':''}" data-p="${p.id}">${p.label}</button>`).join("")}</div></div>
      <div class="cx"><span>Task complexity</span><span class="bar"><i style="--v:${S.complexity.toFixed(1)}"></i></span><b>${S.complexity.toFixed(1)} / 10</b><span>· ${cxLabel(S.complexity)}${S.heavy?" · heavy on quota":""}</span></div>
@@ -505,7 +587,7 @@ function renderSubs(){
    </div>`;
  }).join("");
  $("subs").querySelectorAll(".plan").forEach(b=>b.onclick=()=>{
-   const s=b.closest(".sub").dataset.s; pb.plans[s]=b.dataset.p; savePlans();
+   const s=b.closest(".subcard").dataset.s; pb.plans[s]=b.dataset.p; savePlans();
    pb.subs=planSubs(pb.rec,$("task").value.trim().toLowerCase());
    if(pb.target===s||pb.target.startsWith(`m:${s}:`)) pb.target=s;
    renderSubs(); renderTargets();
@@ -675,6 +757,224 @@ $("copyPrompt").onclick=async()=>{
  const c=$("copied"); c.classList.add("show"); clearTimeout(pb.ct); pb.ct=setTimeout(()=>c.classList.remove("show"),1800);
 };
 $("editAnswers").onclick=()=>{pb.step=0; $("output").style.display="none"; renderWizard(); $("wizard").scrollIntoView({behavior:"smooth",block:"nearest"})};
+
+/* ---------- Recheck: search for the latest price / capability / functionality changes, pick which to apply ---------- */
+const PATCH_FIELDS={input:"num",output:"num",name:"str",desc:"str",best:"str",tags:"arr",breadth:"score",depth:"score",agent:"score",code:"score",long:"score",research:"score",multi:"score",discipline:"score",value:"score",costTier:"tier"};
+const SCORE_FIELDS=["breadth","depth","agent","code","long","research","multi","discipline","value"];
+const rc={changes:[],through:null,state:null};
+
+function loadRc(){ try{ const s=JSON.parse(localStorage.getItem("pm_recheck")||"null"); if(s&&Array.isArray(s.applied)&&isoDate(s.asOf)) return s; }catch(e){} return {asOf:PUBLISHED_AS_OF,applied:[]}; }
+function saveRc(){ try{ localStorage.setItem("pm_recheck",JSON.stringify(rc.state)) }catch(e){} }
+function isoDate(s){ const m=String(s||"").match(/^\d{4}-\d{2}-\d{2}/); return m?m[0]:null; }
+function todayIso(){ return new Date().toLocaleDateString("en-CA"); }
+function fmtDate(iso){ const d=new Date(iso+"T00:00:00"); return isNaN(d)?iso:d.toLocaleDateString("en-US",{month:"long",day:"numeric",year:"numeric"}); }
+function tierFor(out){ return out<=4?1:out<=8?2:out<=15?3:out<=30?4:5; }
+
+/* Keep only whitelisted fields, with sane types and ranges, from whatever the AI returned. */
+function cleanPatch(p){
+ if(!p||typeof p!=="object") return null;
+ const out={};
+ for(const [k,t] of Object.entries(PATCH_FIELDS)){
+   if(!(k in p)) continue; const v=p[k];
+   if(t==="num"){ if(v===null){out[k]=null;continue} const n=Number(v); if(isFinite(n)&&n>=0) out[k]=n; }
+   else if(t==="score"){ const n=Number(v); if(isFinite(n)) out[k]=Math.max(0,Math.min(10,n)); }
+   else if(t==="tier"){ const n=Math.round(Number(v)); if(n>=1&&n<=5) out[k]=n; }
+   else if(t==="str"){ if(typeof v==="string"&&v.trim()) out[k]=v.trim().slice(0,400); }
+   else if(t==="arr"){ if(Array.isArray(v)) out[k]=v.filter(x=>typeof x==="string").map(x=>x.trim().slice(0,40)).filter(Boolean).slice(0,6); }
+ }
+ return Object.keys(out).length?out:null;
+}
+function normalizeChange(c,i){
+ if(!c||typeof c!=="object") return null;
+ const kinds=["price","capability","functionality","new-model"];
+ const kind=kinds.includes(c.kind)?c.kind:"functionality";
+ const model=typeof c.model==="string"&&models.some(m=>m.id===c.model)?c.model:null;
+ let patch=cleanPatch(c.patch), note="";
+ if(kind==="new-model"){
+   const id=String(c.new_id||c.model||(patch&&patch.name)||"").toLowerCase().replace(/[^a-z0-9]+/g,"-").replace(/^-|-$/g,"");
+   const missing=SCORE_FIELDS.filter(k=>!patch||!(k in patch));
+   if(!id||models.some(m=>m.id===id)||!patch||!patch.name||missing.length){ patch=null; note="incomplete new-model entry; recorded as a note only"; }
+   else patch={...patch,id,vendor:typeof c.vendor==="string"?c.vendor.slice(0,40):"Unknown",color:"#9bb6ff",input:patch.input??null,output:patch.output??null,tags:patch.tags||[],desc:patch.desc||String(c.summary||""),best:patch.best||""};
+ } else if(!model){ patch=null; note="not tied to a model on this map; recorded as a note only"; }
+ else if(!patch){ note="no concrete field change supplied; recorded as a note only"; }
+ const name=model?models.find(m=>m.id===model).name:(patch&&patch.name)||"General";
+ return {uid:"c"+i+"_"+Date.now(),kind,model,name,title:String(c.title||c.summary||"Change").slice(0,140),summary:String(c.summary||"").slice(0,600),
+   effective:isoDate(c.effective||c.date),source:typeof c.source==="string"&&/^https?:\/\//i.test(c.source)?c.source.slice(0,500):null,
+   confidence:["high","medium","low"].includes(c.confidence)?c.confidence:null,patch,note,selected:true};
+}
+function parseResult(text){
+ let s=String(text||"").trim();
+ const fence=s.match(/```(?:json)?\s*([\s\S]*?)```/i); if(fence) s=fence[1];
+ const a=s.indexOf("{"), b=s.lastIndexOf("}"); if(a<0||b<a) throw new Error("no JSON object found in the response.");
+ const obj=JSON.parse(s.slice(a,b+1));
+ const list=Array.isArray(obj.changes)?obj.changes:[];
+ return {through:isoDate(obj.checked_through)||todayIso(),changes:list.map(normalizeChange).filter(Boolean)};
+}
+
+function applyPatch(ch){
+ if(!ch.patch) return;
+ if(ch.kind==="new-model"){ if(!models.some(m=>m.id===ch.patch.id)) models.push({...ch.patch,costTier:ch.patch.costTier||(ch.patch.output!=null?tierFor(ch.patch.output):3)}); return; }
+ const m=models.find(x=>x.id===ch.model); if(!m) return;
+ Object.assign(m,ch.patch);
+ if(("input" in ch.patch||"output" in ch.patch)&&!("costTier" in ch.patch)&&m.output!=null) m.costTier=tierFor(m.output);
+}
+/* Rebuild `models` from the published snapshot, replay every applied change, then redraw everything that reads from it. */
+function applyState(){
+ models.length=0; publishedModels.forEach(m=>models.push(JSON.parse(JSON.stringify(m))));
+ rc.state.applied.forEach(applyPatch);
+ renderModels(); renderPricing(); renderStamp(); renderNotes();
+}
+function renderStamp(){
+ const iso=rc.state.asOf||PUBLISHED_AS_OF, pretty=fmtDate(iso);
+ $("viewDate").textContent="Current view: "+pretty;
+ $("footDate").textContent=pretty;
+ document.title="AI Model Practical Map — "+new Date(iso+"T00:00:00").toLocaleDateString("en-US",{month:"long",year:"numeric"});
+ const n=rc.state.applied.length;
+ $("stamped").textContent=n?`${n} recheck change${n===1?"":"s"} applied`:"";
+}
+function renderNotes(){
+ const notes=rc.state.applied;
+ $("rcNotesWrap").style.display=notes.length?"block":"none";
+ $("rcNotes").innerHTML=notes.map(c=>`<li>${c.source?`<a href="${esc(c.source)}" target="_blank" rel="noopener">${esc(c.name)} — ${esc(c.title)}</a>`:`${esc(c.name)} — ${esc(c.title)}`}${c.summary?": "+esc(c.summary):""}${c.effective?` (effective ${esc(c.effective)})`:""}</li>`).join("");
+}
+
+function recheckPrompt(){
+ const snap=models.map(m=>({id:m.id,name:m.name,vendor:m.vendor,input_per_1m:m.input,output_per_1m:m.output,tags:m.tags,best:m.best}));
+ return `Today is ${todayIso()}. You are updating a model-selection map whose data was last checked through ${rc.state.asOf}.
+
+Search the web for the most recent changes SINCE ${rc.state.asOf} for each model below. Use official vendor pages first (pricing pages, model docs, release notes, help centers), then reputable secondary sources. Cover three areas:
+1. price: API list price per 1M input and output tokens, and consumer plan prices or quotas.
+2. capability: context window, reasoning or effort options, modalities, tool support, new versions.
+3. functionality: availability (which plans or products include the model), deprecations, renames, and new model releases from these vendors that belong on the map.
+
+Current snapshot (JSON):
+${JSON.stringify(snap)}
+
+Return ONLY a JSON object, no prose before or after, in exactly this shape:
+{
+  "checked_through": "YYYY-MM-DD",
+  "changes": [
+    {
+      "kind": "price" | "capability" | "functionality" | "new-model",
+      "model": "<id from the snapshot, or null>",
+      "title": "short headline",
+      "summary": "one or two sentences giving the specific old and new values",
+      "effective": "YYYY-MM-DD",
+      "source": "https://...",
+      "confidence": "high" | "medium" | "low",
+      "patch": null | { "input": 5, "output": 25, "name": "...", "desc": "...", "best": "...", "tags": ["..."], "breadth": 0-10, "depth": 0-10, "agent": 0-10, "code": 0-10, "long": 0-10, "research": 0-10, "multi": 0-10, "discipline": 0-10, "value": 0-10 }
+    }
+  ]
+}
+Rules:
+- "checked_through" is the most recent date your sources are current through, not today's date unless you verified something dated today.
+- Report only changes you verified with a source, and only fields that actually changed in "patch". Omit models with no changes.
+- For "new-model" entries set "model" to null, add "new_id" (a short slug) and "vendor", and give a full patch with name, desc, best, tags, input, output and all nine 0-10 practical scores estimated relative to the snapshot's models.
+- Use null for a price that is not published per token.
+- If nothing changed at all, return {"checked_through": "YYYY-MM-DD", "changes": []}.`;
+}
+
+/* Direct browser call to the Claude API with server-side web search. The key is sent only to api.anthropic.com. */
+async function callClaude(key,model,prompt,onStatus){
+ const headers={"content-type":"application/json","x-api-key":key,"anthropic-version":"2023-06-01","anthropic-dangerous-direct-browser-access":"true","anthropic-beta":"server-side-fallback-2026-07-01"};
+ const user={role:"user",content:prompt};
+ const body={model,max_tokens:16000,messages:[user],tools:[{type:"web_search_20260318",name:"web_search",max_uses:15}],fallbacks:"default"};
+ let data, hops=0;
+ for(;;){
+   const res=await fetch("https://api.anthropic.com/v1/messages",{method:"POST",headers,body:JSON.stringify(body)});
+   data=await res.json().catch(()=>({}));
+   if(!res.ok){
+     const msg=(data.error&&data.error.message)||`HTTP ${res.status}`;
+     /* If this account or model rejects the refusal-fallback option, retry once without it. */
+     if(res.status===400&&/fallback/i.test(msg)&&"fallbacks" in body){ delete body.fallbacks; delete headers["anthropic-beta"]; continue; }
+     throw new Error(msg);
+   }
+   /* Long searches pause server-side; resend the paused assistant turn unchanged to let it continue. */
+   if(data.stop_reason==="pause_turn"&&hops<5){ hops++; onStatus(`Still searching… (continuation ${hops} of 5)`); body.messages=[user,{role:"assistant",content:data.content}]; continue; }
+   break;
+ }
+ if(data.stop_reason==="refusal") throw new Error("the model declined this request"+(data.stop_details&&data.stop_details.explanation?": "+data.stop_details.explanation:"."));
+ const text=(data.content||[]).filter(b=>b.type==="text").map(b=>b.text).join("");
+ const searches=data.usage&&data.usage.server_tool_use?data.usage.server_tool_use.web_search_requests:null;
+ return {text,searches,model:data.model||model};
+}
+
+function rcStatus(msg,cls){ const el=$("rcStatus"); el.textContent=msg||""; el.className="rcstatus"+(cls?" "+cls:""); }
+async function copyText(text,indicator){
+ try{ await navigator.clipboard.writeText(text) }
+ catch(e){ const t=document.createElement("textarea"); t.value=text; document.body.appendChild(t); t.select(); document.execCommand("copy"); t.remove(); }
+ indicator.classList.add("show"); clearTimeout(indicator._t); indicator._t=setTimeout(()=>indicator.classList.remove("show"),1800);
+}
+function describePatch(c){
+ if(c.kind==="new-model") return `adds ${c.patch.name} to the map`;
+ const m=models.find(x=>x.id===c.model);
+ const f=(k,x)=>Array.isArray(x)?x.join(", "):x==null?"—":(k==="input"||k==="output")?"$"+x:String(x);
+ return Object.entries(c.patch).map(([k,v])=>(typeof v==="string"&&v.length>40)?`${k} updated`:`${k} ${f(k,m?m[k]:undefined)} → ${f(k,v)}`).join("; ");
+}
+function renderChanges(){
+ $("changes").innerHTML=rc.changes.map(c=>`<div class="change ${c.selected?'on':''}" data-u="${c.uid}"><input type="checkbox" ${c.selected?'checked':''} aria-label="Select this change"/>
+  <div class="ct"><span class="kind ${c.kind}">${c.kind.replace("-"," ")}</span><span>${esc(c.name)}</span><span style="color:var(--muted);font-weight:600">· ${esc(c.title)}</span></div>
+  <div class="cs">${esc(c.summary)}${c.patch?`<br/><span style="color:var(--green)">Will update: ${esc(describePatch(c))}</span>`:""}</div>
+  <div class="cm">${c.effective?`<span>Effective ${esc(c.effective)}</span>`:""}${c.confidence?`<span>Confidence: ${esc(c.confidence)}</span>`:""}${c.source?`<a href="${esc(c.source)}" target="_blank" rel="noopener">Source</a>`:"<span>No source given</span>"}${c.note?`<span class="noapply">${esc(c.note)}</span>`:""}</div></div>`).join("");
+ $("changes").querySelectorAll(".change").forEach(row=>{
+   const box=row.querySelector("input"), c=rc.changes.find(x=>x.uid===row.dataset.u);
+   const sync=()=>{ c.selected=box.checked; row.classList.toggle("on",box.checked) };
+   box.onchange=sync;
+   row.onclick=e=>{ if(e.target.tagName==="A"||e.target===box) return; box.checked=!box.checked; sync(); };
+ });
+}
+function showChanges(r,meta){
+ rc.changes=r.changes; rc.through=r.through;
+ $("rcResults").style.display="block";
+ const n=r.changes.length;
+ $("rcFound").textContent=n?`${n} change${n===1?"":"s"} found`:"No changes found";
+ $("rcThrough").textContent=`Information checked through ${fmtDate(r.through)}${meta?" · "+meta:""}. Tick what you want to apply.`;
+ rcStatus(n?"":"Nothing new was reported. Apply anyway to move the Current view date forward to the checked-through date.","ok");
+ renderChanges();
+ $("rcResults").scrollIntoView({behavior:"smooth",block:"nearest"});
+}
+
+$("recheck").onclick=()=>{ $("rc").style.display="block"; $("rc").scrollIntoView({behavior:"smooth",block:"start"}); };
+$("rcClose").onclick=()=>{ $("rc").style.display="none" };
+$("rcCopyPrompt").onclick=()=>copyText(recheckPrompt(),$("rcCopied"));
+$("rcLoad").onclick=()=>{ try{ showChanges(parseResult($("rcPaste").value)) }catch(e){ rcStatus("Could not read that result: "+e.message,"err") } };
+$("rcRun").onclick=async()=>{
+ const key=$("rcKey").value.trim();
+ if(!key){ rcStatus("Enter an Anthropic API key, or use Option B.","err"); $("rcKey").focus(); return }
+ const model=$("rcModel").value;
+ try{ if($("rcRemember").checked) localStorage.setItem("pm_apikey",key); else localStorage.removeItem("pm_apikey"); localStorage.setItem("pm_rcmodel",model) }catch(e){}
+ $("rcRun").disabled=true; rcStatus(`Searching with ${model}… this usually takes one to three minutes.`);
+ try{
+   const out=await callClaude(key,model,recheckPrompt(),m=>rcStatus(m));
+   showChanges(parseResult(out.text),`${out.searches!=null?out.searches+" web searches · ":""}${out.model}`);
+ }catch(e){ rcStatus("Recheck failed: "+e.message,"err") }
+ finally{ $("rcRun").disabled=false }
+};
+$("rcAll").onclick=()=>{ rc.changes.forEach(c=>c.selected=true); renderChanges() };
+$("rcNone").onclick=()=>{ rc.changes.forEach(c=>c.selected=false); renderChanges() };
+$("rcApply").onclick=()=>{
+ const sel=rc.changes.filter(c=>c.selected);
+ const through=rc.through||todayIso();
+ sel.forEach(c=>{
+   const {selected,uid,...rest}=c;
+   if(!rc.state.applied.some(a=>a.kind===rest.kind&&a.model===rest.model&&a.title===rest.title)) rc.state.applied.push(rest);
+ });
+ if(through>rc.state.asOf) rc.state.asOf=through;
+ saveRc(); applyState();
+ rc.changes=rc.changes.filter(c=>!c.selected); renderChanges();
+ if(!rc.changes.length) $("rcResults").style.display="none";
+ rcStatus(`Applied ${sel.length} change${sel.length===1?"":"s"}. Current view is now ${fmtDate(rc.state.asOf)}. Re-run the task chooser to use the updated data.`,"ok");
+ $("viewDate").scrollIntoView({behavior:"smooth",block:"center"});
+};
+$("rcReset").onclick=()=>{
+ rc.state={asOf:PUBLISHED_AS_OF,applied:[]}; try{ localStorage.removeItem("pm_recheck") }catch(e){}
+ applyState(); rcStatus("Back to the published snapshot of "+fmtDate(PUBLISHED_AS_OF)+".","ok");
+};
+
+/* Boot: restore remembered settings and any changes applied earlier in this browser, then draw the map. */
+try{ const k=localStorage.getItem("pm_apikey"); if(k){ $("rcKey").value=k; $("rcRemember").checked=true } const mm=localStorage.getItem("pm_rcmodel"); if(mm) $("rcModel").value=mm; }catch(e){}
+try{ rc.state=loadRc(); applyState(); }
+catch(e){ console.error("Recheck restore failed; showing the published snapshot.",e); rc.state={asOf:PUBLISHED_AS_OF,applied:[]}; renderModels(); renderPricing(); }
 </script>
 </body>
 </html>
