@@ -3,6 +3,9 @@
 <head>
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1"/>
+<!-- Second layer behind esc(): even if an escaping slip let markup through, no external script, style, image or connection can
+     load, and the only network destination the page may open is the Claude API used by Recheck Option A. -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; connect-src https://api.anthropic.com; img-src data:; base-uri 'none'; form-action 'none'"/>
 <title>AI Model Practical Map — September 2026</title>
 <style>
 :root{

@@ -28,15 +28,19 @@ That runs `python -m http.server 8765 --bind 127.0.0.1`. Any static file server 
 npm test
 ```
 
-Requires Node 22 or newer and nothing else. `test/harness.mjs` extracts the inline `<script>` from `index.html`, evaluates it against a stub DOM and stub storage, and returns the functions. The suites cover:
+Requires Node 22 or newer and nothing else. `test/harness.mjs` extracts the inline `<script>` from `index.html` and evaluates it against a small stub DOM and stub storage. The stub DOM parses the page's static markup and anything the script assigns to `innerHTML`, so tests can find rendered buttons with `querySelectorAll`, read their `dataset`, and `click()` them the way a user does. The suites cover:
 
 | File | Covers |
 |---|---|
 | `test/smoke.test.mjs` | The script boots and renders the snapshot; all presets produce picks |
 | `test/xss.test.mjs` | Recheck-sourced text renders escaped in cards, pricing table and results |
-| `test/chooser.test.mjs` | Word-boundary keyword matching, shared stakes signal, golden preset picks, no-signal notice |
-| `test/recheck.test.mjs` | JSON parsing (fenced, prose-wrapped, truncated, hostile), patch validation, apply/reset loop, `callClaude` with a mocked API |
+| `test/chooser.test.mjs` | Word-boundary keyword matching, literal matching of regex characters, shared stakes signal, golden preset picks, no-signal notice |
+| `test/ui.test.mjs` | The interactive layer: presets, plan buttons, ladder rungs, target chips, every wizard control, Copy prompt, Recheck checkboxes, Select all / none, Apply |
+| `test/recheck.test.mjs` | JSON parsing (fenced, prose-wrapped, truncated, hostile), patch validation, apply/reset loop, duplicate detection, the 200-entry cap, `callClaude` with a mocked API including the continuation budget |
+| `test/storage.test.mjs` | Blocked or unreadable browser storage: the page keeps working, warns once per cause in the console, and shows one notice |
 | `test/apikey.test.mjs` | Key storage rules |
+
+For a check in a real browser, serve the folder and drive `index.html` with Playwright or by hand; the suite above deliberately has no browser dependency.
 
 GitHub Actions runs the suite on every push and pull request (`.github/workflows/ci.yml`).
 
@@ -92,6 +96,7 @@ Option A sends the same prompt to the Claude API from the browser with server-si
 ## Security model
 
 - **Escaping.** Every model string that reaches `innerHTML` (name, vendor, description, best-for, tags) passes through `esc()`. Recheck text is untrusted: it comes from an AI reply, and in Option A that reply was shaped by web pages the model read. A patch containing HTML renders as literal text. `test/xss.test.mjs` proves it with the payload from the September 2026 review.
+- **Content Security Policy.** A `<meta http-equiv="Content-Security-Policy">` tag in the head is the second layer behind `esc()`: `default-src 'none'`, inline script and style only, `connect-src` limited to `https://api.anthropic.com`, no images except `data:` URIs, and no `<base>` or form targets. If an escaping slip ever let markup through, it still could not load a script, style or beacon from anywhere. Verified in headless Chromium: the page issues exactly one request to load and one to the Claude API when Recheck Option A runs, and no violation is reported.
 - **Validation.** `cleanPatch()` whitelists fields and clamps ranges; `normalizeChange()` drops unknown models, malformed new-model entries and non-HTTP sources.
 - **API key.** Sent only to `api.anthropic.com`. If you tick "remember", it is kept in `sessionStorage` for the current tab and cleared when the tab closes. It is never written to `localStorage`, and any key an earlier version left there is removed at boot.
 - **Persistence.** Applied Recheck changes live in `localStorage` under `pm_recheck`; plan choices under `pm_plans`; the last Recheck model under `pm_rcmodel`. Reset clears `pm_recheck`.
