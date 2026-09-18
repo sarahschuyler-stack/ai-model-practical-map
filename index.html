@@ -985,18 +985,26 @@ $("rcRun").onclick=async()=>{
 };
 $("rcAll").onclick=()=>{ rc.changes.forEach(c=>c.selected=true); renderChanges() };
 $("rcNone").onclick=()=>{ rc.changes.forEach(c=>c.selected=false); renderChanges() };
+/* Two changes are the same only if everything that affects the map or the notes list matches. Matching on kind + model + title
+   alone dropped a second, different change that happened to reuse a headline, while the status line still counted it as applied. */
+function sameChange(a,b){
+ return a.kind===b.kind&&a.model===b.model&&a.title===b.title&&a.summary===b.summary&&(a.effective||null)===(b.effective||null)
+   &&JSON.stringify(a.patch||null)===JSON.stringify(b.patch||null);
+}
 $("rcApply").onclick=()=>{
  const sel=rc.changes.filter(c=>c.selected);
  const through=rc.through||todayIso();
+ let added=0, dup=0;
  sel.forEach(c=>{
    const {selected,uid,...rest}=c;
-   if(!rc.state.applied.some(a=>a.kind===rest.kind&&a.model===rest.model&&a.title===rest.title)) rc.state.applied.push(rest);
+   if(rc.state.applied.some(a=>sameChange(a,rest))) dup++; else { rc.state.applied.push(rest); added++; }
  });
  if(through>rc.state.asOf) rc.state.asOf=through;
  saveRc(); applyState();
  rc.changes=rc.changes.filter(c=>!c.selected); renderChanges();
  if(!rc.changes.length) $("rcResults").style.display="none";
- rcStatus(`Applied ${sel.length} change${sel.length===1?"":"s"}. Current view is now ${fmtDate(rc.state.asOf)}. Re-run the task chooser to use the updated data.`,"ok");
+ const dupNote=dup?` ${dup} ${dup===1?"was":"were"} already applied earlier and skipped.`:"";
+ rcStatus(`Applied ${added} change${added===1?"":"s"}.${dupNote} Current view is now ${fmtDate(rc.state.asOf)}. Re-run the task chooser to use the updated data.`,"ok");
  $("viewDate").scrollIntoView({behavior:"smooth",block:"center"});
 };
 $("rcReset").onclick=()=>{
