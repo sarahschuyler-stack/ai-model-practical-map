@@ -398,7 +398,7 @@ function exampleCost(m){
 }
 function renderPricing(){
  document.getElementById("pricingRows").innerHTML=models.map(m=>`
-<tr><td><b>${esc(m.name)}</b></td><td>${esc(m.vendor)}</td><td>${m.input==null?"—":"$"+m.input.toFixed(m.input<1?2:2)}</td><td>${m.output==null?"—":"$"+m.output.toFixed(m.output<1?2:2)}</td><td>${exampleCost(m)}</td><td>${["","Very low","Low","Moderate","Premium","Frontier premium"][m.costTier]}</td></tr>`).join("");
+<tr><td><b>${esc(m.name)}</b></td><td>${esc(m.vendor)}</td><td>${m.input==null?"—":"$"+m.input.toFixed(2)}</td><td>${m.output==null?"—":"$"+m.output.toFixed(2)}</td><td>${exampleCost(m)}</td><td>${["","Very low","Low","Moderate","Premium","Frontier premium"][m.costTier]}</td></tr>`).join("");
 }
 
 const patterns = {
@@ -412,11 +412,13 @@ const patterns = {
  discipline:["spec","defined","routine","follow","exact","requirements","implementation","keep cost low","straightforward"]
 };
 /* Match a keyword only where it starts a word; keywords of three characters or fewer must also end one (a plural "s" is allowed).
-   Plain substring matching fired "api" on "rapidly", "test" on "latest" and "web" on "webhook". Keywords are plain text, no regex syntax. */
+   Plain substring matching fired "api" on "rapidly", "test" on "latest" and "web" on "webhook". Keywords are escaped before they
+   become a pattern, so a future "c++" or "node.js" keyword matches literally instead of as regex syntax. */
 const wordRe=new Map();
+const reEscape=s=>s.replace(/[.*+?^${}()|[\]\\]/g,"\\$&");
 function hasWord(text,k){
  let re=wordRe.get(k);
- if(!re){ re=new RegExp("(?:^|[^a-z0-9])"+k+(k.length<=3?"s?(?![a-z0-9])":"")); wordRe.set(k,re); }
+ if(!re){ re=new RegExp("(?:^|[^a-z0-9])"+reEscape(k)+(k.length<=3?"s?(?![a-z0-9])":"")); wordRe.set(k,re); }
  return re.test(text);
 }
 function signal(text,arr){let n=0;arr.forEach(k=>{if(hasWord(text,k)) n++});return Math.min(10,n*2.2)}
@@ -624,15 +626,17 @@ function renderSubs(){
    if($("output").style.display!=="none") renderOutput(); else renderWizard();
  });
 }
+/* → {m, label, sub}. `sub` is the subscription key ("chatgpt" | "claude") when the target is one of the user's plans, else null;
+   renderOutput reads it directly instead of sniffing the display label for a vendor name. */
 function resolveTarget(){
  const t=pb.target;
- if(targetLabels[t]) return {m:pb.rec[t],label:targetLabels[t]};
- if(subs[t]) return {m:pb.subs.items[t].pick,label:"Your "+subs[t].name};
+ if(targetLabels[t]) return {m:pb.rec[t],label:targetLabels[t],sub:null};
+ if(subs[t]) return {m:pb.subs.items[t].pick,label:"Your "+subs[t].name,sub:t};
  if(t.startsWith("m:")){
    const [,s,id]=t.split(":"); const it=pb.subs.items[s]; const m=it.tiers.find(x=>x.id===id);
-   return {m,label:"Your "+subs[s].name+(id===it.pick.id?"":id===it.fallback.id?" · fallback":" · alternate tier")};
+   return {m,label:"Your "+subs[s].name+(id===it.pick.id?"":id===it.fallback.id?" · fallback":" · alternate tier"),sub:s};
  }
- return {m:pb.rec.balanced,label:targetLabels.balanced};
+ return {m:pb.rec.balanced,label:targetLabels.balanced,sub:null};
 }
 
 const modelGuidance={
@@ -766,8 +770,8 @@ function renderOutput(){
  $("outTitle").textContent=`Prompt for ${m.name} · ${rt.label}`;
  $("promptOut").value=buildPrompt(m,g);
  let extra="";
- if(rt.label.startsWith("Your ")){
-   const s=rt.label.includes("ChatGPT")?"chatgpt":"claude", it=pb.subs.items[s];
+ if(rt.sub){
+   const s=rt.sub, it=pb.subs.items[s];
    if(m.id===it.fallback.id&&it.fallback.id!==it.pick.id) extra=` <b>Fallback tier:</b> this prompt is tuned for ${esc(m.name)} standing in for ${esc(it.pick.name)}. It already asks for stated assumptions and self-verification; review the hardest parts yourself.`;
    else if(s==="chatgpt"&&m.id==="astra"&&it.plan==="plus") extra=` <b>Where to run it:</b> on Plus, Astra is available inside Codex and Work mode, not the regular chat window.`;
    else if(s==="claude"&&m.id==="fable") extra=` <b>Where to run it:</b> Fable-tier access lives on Max only when Anthropic offers it in the app; if it is missing from your picker, switch the target to Opus 5.`;

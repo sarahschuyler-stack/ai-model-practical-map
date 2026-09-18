@@ -144,3 +144,21 @@ test("Recheck checkboxes and Select none / Select all control what Apply writes"
   q.el("rcClose").click();
   assert.equal(q.el("rc").style.display, "none");
 });
+
+test("resolveTarget carries the subscription key so output text does not depend on label wording", () => {
+  const q = startFrom("Executive analysis");
+  assert.equal(q.resolveTarget().sub, null);
+  q.pb.target = "chatgpt";
+  assert.equal(q.resolveTarget().sub, "chatgpt");
+  q.pb.target = "m:claude:opus";
+  const rt = q.resolveTarget();
+  assert.equal(rt.sub, "claude");
+  assert.equal(rt.m.id, "opus");
+  // Renaming a subscription must not change which advice the output shows.
+  q.pb.target = "chatgpt"; q.el("wizSkipAll").click();
+  const before = q.el("tips").innerHTML;
+  q.el("editAnswers").click();
+  const saved = q.pb.subs; q.el("wizSkipAll").click();
+  assert.equal(q.el("tips").innerHTML, before);
+  assert.equal(q.pb.subs, saved);
+});
