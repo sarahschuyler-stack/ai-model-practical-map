@@ -86,6 +86,8 @@ test("Edit answers reopens the wizard where it was; Copy prompt writes to the cl
   await q.el("copyPrompt").onclick();
   assert.equal(q.copied.length, 1);
   assert.equal(q.copied[0], q.el("promptOut").value);
+  assert.ok(q.el("copied").classList.contains("show"), "the Copied indicator lights up");
+  clearTimeout(q.pb.ct); // the 1.8s hide timer would otherwise keep the test process alive
 });
 
 test("a subscription target explains where to run the prompt", () => {

@@ -35,6 +35,7 @@ const EXPORTS = [
   "callClaude", "recheckPrompt", "rc", "pb", "resolveTarget",
 ];
 
+let treeVersion = 0; // bumped on every innerHTML assignment so id lookups can cache the flattened tree
 const VOID = new Set(["br", "input", "img", "meta", "link", "hr", "i-void"]);
 const decode = s => String(s).replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&amp;/g, "&");
 
@@ -116,7 +117,7 @@ function makeElement(id, tag = "div") {
   };
   Object.defineProperty(el, "innerHTML", {
     get() { return innerHTML; },
-    set(v) { innerHTML = String(v); parseInto(el, innerHTML); },
+    set(v) { innerHTML = String(v); parseInto(el, innerHTML); treeVersion++; },
   });
   return el;
 }
@@ -140,11 +141,13 @@ export function load({ fetch: fetchImpl, storage } = {}) {
   const root = makeElement("<root>", "body");
   root.innerHTML = bodyMarkup;
   const synthetic = new Map();
+  let flatVersion = -1, flat = [];
+  const all = () => { if (flatVersion !== treeVersion) { flat = descendants(root); flatVersion = treeVersion; } return flat; };
   const document = {
     title: "",
     body: root,
     getElementById(id) {
-      const found = descendants(root).find(e => e.id === id);
+      const found = all().find(e => e.id === id);
       if (found) return found;
       if (!synthetic.has(id)) synthetic.set(id, makeElement(id));
       return synthetic.get(id);
