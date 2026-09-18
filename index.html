@@ -372,17 +372,21 @@ const models = [
    so the cards, pricing table and chooser all read from the same live `models` array. */
 const PUBLISHED_AS_OF="2026-09-16";
 const publishedModels=JSON.parse(JSON.stringify(models));
+const $=id=>document.getElementById(id);
+/* HTML-escape any text that did not come from this file. Recheck can rewrite model fields from an AI reply, so every
+   model string that reaches innerHTML goes through this. */
+function esc(s){return String(s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]))}
 
 function bar(label,v){return `<span>${label}</span><span class="bar"><i style="--v:${v}"></i></span><b>${v.toFixed(1)}</b>`}
 function renderModels(){
  document.getElementById("modelCards").innerHTML = models.map(m=>`
-<div class="card model" style="--accent:${m.color}">
- <div class="modeltop"><div><div class="name">${m.name}</div><div class="vendor">${m.vendor}</div></div>
+<div class="card model" style="--accent:${esc(m.color)}">
+ <div class="modeltop"><div><div class="name">${esc(m.name)}</div><div class="vendor">${esc(m.vendor)}</div></div>
  <div class="price">${m.input!=null?`<strong>$${m.input} / $${m.output}</strong><br/>in / out per 1M`:`<strong>Variable</strong><br/>see provider`}</div></div>
- <div class="desc">${m.desc}</div>
+ <div class="desc">${esc(m.desc)}</div>
  <div class="bars">${bar("Breadth",m.breadth)}${bar("Depth",m.depth)}${bar("Agent",m.agent)}${bar("Coding",m.code)}${bar("Value",m.value)}</div>
- <div class="tags">${m.tags.map(t=>`<span class="tag">${t}</span>`).join("")}</div>
- <div class="bestfor"><b>Best for:</b> ${m.best}</div>
+ <div class="tags">${m.tags.map(t=>`<span class="tag">${esc(t)}</span>`).join("")}</div>
+ <div class="bestfor"><b>Best for:</b> ${esc(m.best)}</div>
 </div>`).join("");
 }
 
@@ -392,7 +396,7 @@ function exampleCost(m){
 }
 function renderPricing(){
  document.getElementById("pricingRows").innerHTML=models.map(m=>`
-<tr><td><b>${m.name}</b></td><td>${m.vendor}</td><td>${m.input==null?"—":"$"+m.input.toFixed(m.input<1?2:2)}</td><td>${m.output==null?"—":"$"+m.output.toFixed(m.output<1?2:2)}</td><td>${exampleCost(m)}</td><td>${["","Very low","Low","Moderate","Premium","Frontier premium"][m.costTier]}</td></tr>`).join("");
+<tr><td><b>${esc(m.name)}</b></td><td>${esc(m.vendor)}</td><td>${m.input==null?"—":"$"+m.input.toFixed(m.input<1?2:2)}</td><td>${m.output==null?"—":"$"+m.output.toFixed(m.output<1?2:2)}</td><td>${exampleCost(m)}</td><td>${["","Very low","Low","Moderate","Premium","Frontier premium"][m.costTier]}</td></tr>`).join("");
 }
 
 const patterns = {
@@ -462,10 +466,10 @@ function renderRec(el,title,m,n,type){
  const sig=matchSignals(n);
  const labels={breadth:"breadth",depth:"depth",agent:"agentic",code:"coding",long:"long context",research:"research",multi:"multimodal",discipline:"discipline"};
  const cost=m.input!=null?`API: $${m.input}/M input · $${m.output}/M output · example ${exampleCost(m)}`:`Pricing: provider/deployment dependent`;
- el.innerHTML=`<div class="rank">${title}</div><h3>${m.name}</h3><div class="why">${explain(m,n,type)}</div>
+ el.innerHTML=`<div class="rank">${title}</div><h3>${esc(m.name)}</h3><div class="why">${explain(m,n,type)}</div>
  <div class="score">${m.cap.toFixed(1)}<span> / 10 capability match</span></div><div class="cost">${cost}</div>
  <div class="signals">${sig.map(s=>`<span class="signal">${labels[s]} need ${n[s].toFixed(0)}/10</span>`).join("") || '<span class="signal">general-purpose task</span>'}</div>
- <div class="details"><b>Why this model:</b> ${m.best}<br/><b>Practical caveat:</b> Recommendation is heuristic; final performance depends on tool access, prompting, reasoning effort and the surrounding agent harness.</div>`;
+ <div class="details"><b>Why this model:</b> ${esc(m.best)}<br/><b>Practical caveat:</b> Recommendation is heuristic; final performance depends on tool access, prompting, reasoning effort and the surrounding agent harness.</div>`;
 }
 document.getElementById("recommend").onclick=()=>{
  const text=document.getElementById("task").value.trim();
@@ -483,8 +487,6 @@ document.querySelectorAll(".preset").forEach(b=>b.onclick=()=>{document.getEleme
 
 /* ---------- Step 2: prompt builder ---------- */
 const pb={rec:null,target:"balanced",answers:{},step:0,ct:null,plans:null,subs:null};
-const $=id=>document.getElementById(id);
-function esc(s){return String(s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]))}
 const targetLabels={cheap:"Cheapest that works",premium:"Best regardless of price",balanced:"Best practical overall"};
 
 /* ---------- Subscriptions the user already pays for ---------- */
