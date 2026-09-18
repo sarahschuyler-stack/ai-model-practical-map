@@ -1,0 +1,6 @@
+node_modules/
+coverage/
+.DS_Store
+Thumbs.db
+# stray local copies of the page (an index.html.html sits in some working trees)
+*.html.html

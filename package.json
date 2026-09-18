@@ -1,0 +1,12 @@
+{
+  "name": "ai-model-practical-map",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Static single-page practical map of frontier AI models with a task chooser, prompt builder and Recheck flow.",
+  "type": "module",
+  "scripts": {
+    "test": "node --test \"test/**/*.test.mjs\"",
+    "serve": "python -m http.server 8765 --bind 127.0.0.1"
+  },
+  "engines": { "node": ">=22" }
+}
