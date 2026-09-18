@@ -236,6 +236,7 @@ button.ghost{background:transparent;border:1px solid var(--line);color:#b8cae0}
 </div>
 <div class="controls"><button class="primary" id="recommend">Recommend models</button><button id="clear">Clear</button></div>
 </div>
+<div class="note" id="chooserNote" style="display:none">No task signals were detected in that description, so these three picks are the general-purpose defaults, not task-specific findings. Mention the kind of work (research, coding, documents, agents, a spec to follow) for a sharper answer.</div>
 <div class="grid results" id="results">
   <div class="card rec" id="cheap"></div>
   <div class="card rec" id="premium"></div>
@@ -409,10 +410,23 @@ const patterns = {
  multi:["image","video","pdf","chart","screenshot","visual","multimodal","photo","spreadsheet","slides","document"],
  discipline:["spec","defined","routine","follow","exact","requirements","implementation","keep cost low","straightforward"]
 };
-function signal(text,arr){let n=0;arr.forEach(k=>{if(text.includes(k)) n++});return Math.min(10,n*2.2)}
+/* Match a keyword only where it starts a word; keywords of three characters or fewer must also end one (a plural "s" is allowed).
+   Plain substring matching fired "api" on "rapidly", "test" on "latest" and "web" on "webhook". Keywords are plain text, no regex syntax. */
+const wordRe=new Map();
+function hasWord(text,k){
+ let re=wordRe.get(k);
+ if(!re){ re=new RegExp("(?:^|[^a-z0-9])"+k+(k.length<=3?"s?(?![a-z0-9])":"")); wordRe.set(k,re); }
+ return re.test(text);
+}
+function signal(text,arr){let n=0;arr.forEach(k=>{if(hasWord(text,k)) n++});return Math.min(10,n*2.2)}
+/* Words that mark a high-stakes or ambiguous job. Both the chooser (depth need) and Step 2 (task complexity) read this, so the two
+   panels agree on how hard the job is; the review found them contradicting each other on the Executive analysis preset. */
+const stakesWords=["board","executive","financial","finance","hypothes","incomplete","ambiguous","strategy","high stakes","root cause","architecture","intermittent","reconcile","contradict","prove","novel","legal","tax","audit","medical","security","migration","production","mission critical"];
+function stakes(text){ let st=0; stakesWords.forEach(k=>{if(hasWord(text,k)) st++}); return Math.min(7.5,st*2); }
 function needs(text){
  let n={};
  for(const [k,v] of Object.entries(patterns)) n[k]=signal(text,v);
+ n.depth=Math.max(n.depth,stakes(text));
  if(text.length>550){n.depth=Math.max(n.depth,5);n.agent=Math.max(n.agent,4)}
  if(n.code>4){n.discipline=Math.max(n.discipline,4)}
  if(n.long>3){n.long=Math.max(n.long,7)}
@@ -478,11 +492,12 @@ document.getElementById("recommend").onclick=()=>{
  renderRec(document.getElementById("cheap"),"01 · Cheapest that should get it done",r.cheap,r.n,"cheap");
  renderRec(document.getElementById("premium"),"02 · Best regardless of price",r.premium,r.n,"premium");
  renderRec(document.getElementById("balanced"),"03 · Best practical overall",r.balanced,r.n,"balanced");
+ document.getElementById("chooserNote").style.display=matchSignals(r.n).length?"none":"block";
  document.getElementById("results").style.display="grid";
  document.getElementById("results").scrollIntoView({behavior:"smooth",block:"nearest"});
  initPromptBuilder(r);
 };
-document.getElementById("clear").onclick=()=>{document.getElementById("task").value="";document.getElementById("results").style.display="none";document.getElementById("prompt").style.display="none"};
+document.getElementById("clear").onclick=()=>{document.getElementById("task").value="";document.getElementById("results").style.display="none";document.getElementById("chooserNote").style.display="none";document.getElementById("prompt").style.display="none"};
 document.querySelectorAll(".preset").forEach(b=>b.onclick=()=>{document.getElementById("task").value=b.dataset.preset;document.getElementById("recommend").click()});
 
 /* ---------- Step 2: prompt builder ---------- */
@@ -507,12 +522,9 @@ function access(s,plan,tier){
  if(s==="chatgpt"){ if(tier==="astra") return plan==="plus"?"partial":"yes"; return "yes"; }
  return "yes";
 }
-const stakesWords=["board","executive","financial","finance","hypothes","incomplete","ambiguous","strategy","high stakes","root cause","architecture","intermittent","reconcile","contradict","prove","novel","legal","tax","audit","medical","security","migration","production","mission critical"];
 function complexity(n,text){
  const w=.4*n.depth+.25*n.agent+.15*n.code+.1*n.long+.15*n.breadth;
- let st=0; stakesWords.forEach(k=>{if(text.includes(k)) st++});
- const stakes=Math.min(7.5,st*2);
- return Math.min(10,Math.max(w,n.depth*.85,stakes));
+ return Math.min(10,Math.max(w,n.depth*.85,stakes(text)));
 }
 function heavyLoad(n,text){ return n.agent>=4||n.long>=4||text.length>550; }
 function cxBand(c){ return c>=6?"high":c>=3?"mid":"low"; }
