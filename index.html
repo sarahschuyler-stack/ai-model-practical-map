@@ -392,7 +392,7 @@ function renderModels(){
 }
 
 function exampleCost(m){
- if(m.input==null) return "Variable";
+ if(m.input==null||m.output==null) return "Variable";
  return "$"+(m.input*.1 + m.output*.01).toFixed(3);
 }
 function renderPricing(){
@@ -816,11 +816,20 @@ function normalizeChange(c,i){
    effective:isoDate(c.effective||c.date),source:typeof c.source==="string"&&/^https?:\/\//i.test(c.source)?c.source.slice(0,500):null,
    confidence:["high","medium","low"].includes(c.confidence)?c.confidence:null,patch,note,selected:true};
 }
+const TRUNCATED_MSG="the JSON is incomplete, so the reply was probably cut off before it finished. Ask the model to continue, or to return fewer changes.";
 function parseResult(text){
  let s=String(text||"").trim();
  const fence=s.match(/```(?:json)?\s*([\s\S]*?)```/i); if(fence) s=fence[1];
- const a=s.indexOf("{"), b=s.lastIndexOf("}"); if(a<0||b<a) throw new Error("no JSON object found in the response.");
- const obj=JSON.parse(s.slice(a,b+1));
+ const a=s.indexOf("{"), b=s.lastIndexOf("}");
+ if(a<0) throw new Error("no JSON object found in the response.");
+ if(b<a) throw new Error(TRUNCATED_MSG);
+ let obj;
+ try{ obj=JSON.parse(s.slice(a,b+1)); }
+ catch(e){
+   /* A reply cut off mid-object still has a last "}" somewhere inside it, so the slice fails to parse. Say that, not "no JSON". */
+   const opens=(s.match(/[{[]/g)||[]).length, closes=(s.match(/[}\]]/g)||[]).length;
+   throw new Error(opens>closes?TRUNCATED_MSG:"the JSON could not be parsed: "+e.message);
+ }
  const list=Array.isArray(obj.changes)?obj.changes:[];
  return {through:isoDate(obj.checked_through)||todayIso(),changes:list.map(normalizeChange).filter(Boolean)};
 }
@@ -889,13 +898,19 @@ Rules:
 }
 
 /* Direct browser call to the Claude API with server-side web search. The key is sent only to api.anthropic.com. */
+const RECHECK_TIMEOUT_MS=5*60*1000; /* per API call; a search-heavy turn normally finishes well inside this */
+const RECHECK_MAX_TOKENS=16000;
 async function callClaude(key,model,prompt,onStatus){
  const headers={"content-type":"application/json","x-api-key":key,"anthropic-version":"2023-06-01","anthropic-dangerous-direct-browser-access":"true","anthropic-beta":"server-side-fallback-2026-07-01"};
  const user={role:"user",content:prompt};
- const body={model,max_tokens:16000,messages:[user],tools:[{type:"web_search_20260318",name:"web_search",max_uses:15}],fallbacks:"default"};
+ const body={model,max_tokens:RECHECK_MAX_TOKENS,messages:[user],tools:[{type:"web_search_20260318",name:"web_search",max_uses:15}],fallbacks:"default"};
  let data, hops=0;
  for(;;){
-   const res=await fetch("https://api.anthropic.com/v1/messages",{method:"POST",headers,body:JSON.stringify(body)});
+   const ctrl=new AbortController(), timer=setTimeout(()=>ctrl.abort(),RECHECK_TIMEOUT_MS);
+   let res;
+   try{ res=await fetch("https://api.anthropic.com/v1/messages",{method:"POST",headers,body:JSON.stringify(body),signal:ctrl.signal}); }
+   catch(e){ throw new Error(e&&e.name==="AbortError"?`no reply from the API within ${RECHECK_TIMEOUT_MS/60000} minutes`:"network error: "+(e&&e.message||e)); }
+   finally{ clearTimeout(timer); }
    data=await res.json().catch(()=>({}));
    if(!res.ok){
      const msg=(data.error&&data.error.message)||`HTTP ${res.status}`;
@@ -907,9 +922,12 @@ async function callClaude(key,model,prompt,onStatus){
    if(data.stop_reason==="pause_turn"&&hops<5){ hops++; onStatus(`Still searching… (continuation ${hops} of 5)`); body.messages=[user,{role:"assistant",content:data.content}]; continue; }
    break;
  }
+ const u=data.usage||{}, searches=u.server_tool_use?u.server_tool_use.web_search_requests:null;
+ /* One line per run so a failed or expensive recheck can be understood after the fact from the console. */
+ console.info("[recheck]",{model:data.model||model,stop_reason:data.stop_reason,web_searches:searches,input_tokens:u.input_tokens,output_tokens:u.output_tokens,continuations:hops});
  if(data.stop_reason==="refusal") throw new Error("the model declined this request"+(data.stop_details&&data.stop_details.explanation?": "+data.stop_details.explanation:"."));
+ if(data.stop_reason==="max_tokens") throw new Error(`the reply was cut off at the ${RECHECK_MAX_TOKENS.toLocaleString("en-US")}-token output limit before it finished; run again, or ask for fewer changes`);
  const text=(data.content||[]).filter(b=>b.type==="text").map(b=>b.text).join("");
- const searches=data.usage&&data.usage.server_tool_use?data.usage.server_tool_use.web_search_requests:null;
  return {text,searches,model:data.model||model};
 }
 

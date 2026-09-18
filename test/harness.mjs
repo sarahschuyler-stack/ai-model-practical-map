@@ -40,6 +40,15 @@ function makeElement(id) {
   return el;
 }
 
+const memStorage = () => {
+  const m = new Map();
+  return { getItem: k => (m.has(k) ? m.get(k) : null), setItem: (k, v) => m.set(k, String(v)), removeItem: k => m.delete(k), _m: m };
+};
+
+/**
+ * Evaluate the page script against stubs.
+ * @param {{fetch?: Function, storage?: {local?: object, session?: object}}} opts
+ */
 export function load({ fetch: fetchImpl, storage } = {}) {
   const elements = new Map();
   const document = {
@@ -50,17 +59,21 @@ export function load({ fetch: fetchImpl, storage } = {}) {
     createElement(tag) { return makeElement("<" + tag + ">"); },
     execCommand() { return true; },
   };
-  const mem = () => { const m = new Map(); return { getItem: k => (m.has(k) ? m.get(k) : null), setItem: (k, v) => m.set(k, String(v)), removeItem: k => m.delete(k), _m: m }; };
-  const localStorage = (storage && storage.local) || mem();
-  const sessionStorage = (storage && storage.session) || mem();
+  const localStorage = (storage && storage.local) || memStorage();
+  const sessionStorage = (storage && storage.session) || memStorage();
   const navigator = { clipboard: { writeText: async () => {} } };
   const fetch = fetchImpl || (async () => { throw new Error("fetch is not available in tests; pass a mock"); });
   const window = { location: { reload() {} } };
+  const logs = [];
+  const consoleStub = {
+    log: (...a) => logs.push(["log", ...a]), info: (...a) => logs.push(["info", ...a]),
+    warn: (...a) => logs.push(["warn", ...a]), error: (...a) => logs.push(["error", ...a]),
+  };
 
-  const fn = new Function("document", "localStorage", "sessionStorage", "navigator", "fetch", "window",
+  const fn = new Function("document", "localStorage", "sessionStorage", "navigator", "fetch", "window", "console",
     source + "\nreturn {" + EXPORTS.map(n => `${n}: typeof ${n} === "undefined" ? undefined : ${n}`).join(",") + "};");
-  const api = fn(document, localStorage, sessionStorage, navigator, fetch, window);
-  return { ...api, document, localStorage, sessionStorage, el: id => document.getElementById(id) };
+  const api = fn(document, localStorage, sessionStorage, navigator, fetch, window, consoleStub);
+  return { ...api, document, localStorage, sessionStorage, logs, el: id => document.getElementById(id) };
 }
 
 /** The six presets exactly as the page ships them (data-preset attributes). */
@@ -71,4 +84,4 @@ export function presets() {
   return out;
 }
 
-export { html };
+export { html, memStorage };
