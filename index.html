@@ -199,10 +199,10 @@ button.ghost{background:transparent;border:1px solid var(--line);color:#b8cae0}
   <div class="rcmodes">
     <div class="rcmode">
       <b>Option A · Search now with Claude</b>
-      <p>Calls the Claude API directly from this page with web search. Your key goes straight to Anthropic and nowhere else; it is only stored in this browser if you tick “remember”.</p>
+      <p>Calls the Claude API directly from this page with web search. Your key goes straight to Anthropic and nowhere else. Tick “remember” to keep it for this browser tab only: it is held in tab session storage, never written to disk, and cleared when the tab closes.</p>
       <div class="rcrow"><input type="password" id="rcKey" placeholder="Anthropic API key (sk-ant-…)" autocomplete="off" spellcheck="false"/>
         <select id="rcModel"><option value="claude-opus-5">Claude Opus 5</option><option value="claude-fable-5-1">Claude Fable 5.1</option><option value="claude-sonnet-5">Claude Sonnet 5</option></select></div>
-      <div class="rcrow"><label><input type="checkbox" id="rcRemember"/> Remember key in this browser</label><button class="primary" id="rcRun">Run recheck</button></div>
+      <div class="rcrow"><label><input type="checkbox" id="rcRemember"/> Remember key for this tab</label><button class="primary" id="rcRun">Run recheck</button></div>
     </div>
     <div class="rcmode">
       <b>Option B · Use an AI you already pay for</b>
@@ -944,7 +944,8 @@ $("rcRun").onclick=async()=>{
  const key=$("rcKey").value.trim();
  if(!key){ rcStatus("Enter an Anthropic API key, or use Option B.","err"); $("rcKey").focus(); return }
  const model=$("rcModel").value;
- try{ if($("rcRemember").checked) localStorage.setItem("pm_apikey",key); else localStorage.removeItem("pm_apikey"); localStorage.setItem("pm_rcmodel",model) }catch(e){}
+ /* The key lives in sessionStorage only (this tab, cleared on close); it is never written to localStorage. */
+ try{ if($("rcRemember").checked) sessionStorage.setItem("pm_apikey",key); else sessionStorage.removeItem("pm_apikey"); localStorage.setItem("pm_rcmodel",model) }catch(e){}
  $("rcRun").disabled=true; rcStatus(`Searching with ${model}… this usually takes one to three minutes.`);
  try{
    const out=await callClaude(key,model,recheckPrompt(),m=>rcStatus(m));
@@ -974,7 +975,8 @@ $("rcReset").onclick=()=>{
 };
 
 /* Boot: restore remembered settings and any changes applied earlier in this browser, then draw the map. */
-try{ const k=localStorage.getItem("pm_apikey"); if(k){ $("rcKey").value=k; $("rcRemember").checked=true } const mm=localStorage.getItem("pm_rcmodel"); if(mm) $("rcModel").value=mm; }catch(e){}
+try{ localStorage.removeItem("pm_apikey"); /* earlier versions kept the key on disk; purge it */ }catch(e){}
+try{ const k=sessionStorage.getItem("pm_apikey"); if(k){ $("rcKey").value=k; $("rcRemember").checked=true } const mm=localStorage.getItem("pm_rcmodel"); if(mm) $("rcModel").value=mm; }catch(e){}
 try{ rc.state=loadRc(); applyState(); }
 catch(e){ console.error("Recheck restore failed; showing the published snapshot.",e); rc.state={asOf:PUBLISHED_AS_OF,applied:[]}; renderModels(); renderPricing(); }
 </script>
