@@ -186,6 +186,7 @@ button.ghost{background:transparent;border:1px solid var(--line);color:#b8cae0}
 <div class="nav"><div class="navin">
 <a href="#chooser">Task chooser</a><a href="#mental">Mental model</a><a href="#map">Practical map</a><a href="#price">Cost</a><a href="#stack">Multi-model stack</a><a href="#sources">Sources</a>
 </div></div>
+<div class="note" id="storageNote" style="display:none" role="status"></div>
 
 <div class="card rc" id="rc">
   <div class="rchead">
@@ -529,8 +530,19 @@ function complexity(n,text){
 function heavyLoad(n,text){ return n.agent>=4||n.long>=4||text.length>550; }
 function cxBand(c){ return c>=6?"high":c>=3?"mid":"low"; }
 function cxLabel(c){ return c>=6?"Hard, ambiguous or high-stakes":c>=3?"Real reasoning, bounded scope":"Routine or well-defined"; }
-function loadPlans(){ const d={chatgpt:"plus",claude:"pro"}; try{ return Object.assign(d,JSON.parse(localStorage.getItem("pm_plans")||"{}")) }catch(e){ return d } }
-function savePlans(){ try{ localStorage.setItem("pm_plans",JSON.stringify(pb.plans)) }catch(e){} }
+/* Browser storage can be blocked (private mode, site-data settings, a full quota) or hold something unreadable. Every read or write
+   used to swallow that in an empty catch, so applied changes vanished on reload with nothing said anywhere. Now each failure is
+   logged once per cause and the user sees one line explaining what will not be remembered. */
+const storageSeen=new Set();
+function storageWarn(what,e){
+ const key=what+":"+(e&&e.name||"");
+ if(!storageSeen.has(key)){ storageSeen.add(key); console.warn("[storage] "+what,e); }
+ const el=$("storageNote");
+ el.textContent="This browser is not letting the page save "+what+". Everything still works for this visit, but applied Recheck changes, your plan choices and the remembered key will not survive a reload. Allow site data for this page to fix it.";
+ el.style.display="block";
+}
+function loadPlans(){ const d={chatgpt:"plus",claude:"pro"}; try{ return Object.assign(d,JSON.parse(localStorage.getItem("pm_plans")||"{}")) }catch(e){ storageWarn("your plan choices",e); return d } }
+function savePlans(){ try{ localStorage.setItem("pm_plans",JSON.stringify(pb.plans)) }catch(e){ storageWarn("your plan choices",e) } }
 
 function planSubs(r,text){
  const c=complexity(r.n,text), band=cxBand(c), heavy=heavyLoad(r.n,text);
@@ -777,8 +789,8 @@ const PATCH_FIELDS={input:"num",output:"num",name:"str",desc:"str",best:"str",ta
 const SCORE_FIELDS=["breadth","depth","agent","code","long","research","multi","discipline","value"];
 const rc={changes:[],through:null,state:null};
 
-function loadRc(){ try{ const s=JSON.parse(localStorage.getItem("pm_recheck")||"null"); if(s&&Array.isArray(s.applied)&&isoDate(s.asOf)) return s; }catch(e){} return {asOf:PUBLISHED_AS_OF,applied:[]}; }
-function saveRc(){ try{ localStorage.setItem("pm_recheck",JSON.stringify(rc.state)) }catch(e){} }
+function loadRc(){ try{ const s=JSON.parse(localStorage.getItem("pm_recheck")||"null"); if(s&&Array.isArray(s.applied)&&isoDate(s.asOf)) return s; }catch(e){ storageWarn("applied Recheck changes",e) } return {asOf:PUBLISHED_AS_OF,applied:[]}; }
+function saveRc(){ try{ localStorage.setItem("pm_recheck",JSON.stringify(rc.state)) }catch(e){ storageWarn("applied Recheck changes",e) } }
 function isoDate(s){ const m=String(s||"").match(/^\d{4}-\d{2}-\d{2}/); return m?m[0]:null; }
 function todayIso(){ return new Date().toLocaleDateString("en-CA"); }
 function fmtDate(iso){ const d=new Date(iso+"T00:00:00"); return isNaN(d)?iso:d.toLocaleDateString("en-US",{month:"long",day:"numeric",year:"numeric"}); }
@@ -975,7 +987,7 @@ $("rcRun").onclick=async()=>{
  if(!key){ rcStatus("Enter an Anthropic API key, or use Option B.","err"); $("rcKey").focus(); return }
  const model=$("rcModel").value;
  /* The key lives in sessionStorage only (this tab, cleared on close); it is never written to localStorage. */
- try{ if($("rcRemember").checked) sessionStorage.setItem("pm_apikey",key); else sessionStorage.removeItem("pm_apikey"); localStorage.setItem("pm_rcmodel",model) }catch(e){}
+ try{ if($("rcRemember").checked) sessionStorage.setItem("pm_apikey",key); else sessionStorage.removeItem("pm_apikey"); localStorage.setItem("pm_rcmodel",model) }catch(e){ storageWarn("the remembered key and model",e) }
  $("rcRun").disabled=true; rcStatus(`Searching with ${model}… this usually takes one to three minutes.`);
  try{
    const out=await callClaude(key,model,recheckPrompt(),m=>rcStatus(m));
@@ -1008,13 +1020,13 @@ $("rcApply").onclick=()=>{
  $("viewDate").scrollIntoView({behavior:"smooth",block:"center"});
 };
 $("rcReset").onclick=()=>{
- rc.state={asOf:PUBLISHED_AS_OF,applied:[]}; try{ localStorage.removeItem("pm_recheck") }catch(e){}
+ rc.state={asOf:PUBLISHED_AS_OF,applied:[]}; try{ localStorage.removeItem("pm_recheck") }catch(e){ storageWarn("applied Recheck changes",e) }
  applyState(); rcStatus("Back to the published snapshot of "+fmtDate(PUBLISHED_AS_OF)+".","ok");
 };
 
 /* Boot: restore remembered settings and any changes applied earlier in this browser, then draw the map. */
-try{ localStorage.removeItem("pm_apikey"); /* earlier versions kept the key on disk; purge it */ }catch(e){}
-try{ const k=sessionStorage.getItem("pm_apikey"); if(k){ $("rcKey").value=k; $("rcRemember").checked=true } const mm=localStorage.getItem("pm_rcmodel"); if(mm) $("rcModel").value=mm; }catch(e){}
+try{ localStorage.removeItem("pm_apikey"); /* earlier versions kept the key on disk; purge it */ }catch(e){ console.warn("[storage] could not purge a legacy key entry",e) }
+try{ const k=sessionStorage.getItem("pm_apikey"); if(k){ $("rcKey").value=k; $("rcRemember").checked=true } const mm=localStorage.getItem("pm_rcmodel"); if(mm) $("rcModel").value=mm; }catch(e){ storageWarn("the remembered key and model",e) }
 try{ rc.state=loadRc(); applyState(); }
 catch(e){ console.error("Recheck restore failed; showing the published snapshot.",e); rc.state={asOf:PUBLISHED_AS_OF,applied:[]}; renderModels(); renderPricing(); }
 </script>
