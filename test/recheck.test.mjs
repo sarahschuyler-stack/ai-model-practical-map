@@ -144,3 +144,13 @@ test("Apply keeps two different changes that share a title, and reports true dup
   assert.ok(q.sameChange(q.rc.state.applied[0], q.rc.state.applied[0]));
   assert.ok(!q.sameChange(q.rc.state.applied[0], q.rc.state.applied[1]));
 });
+
+test("callClaude names the continuation budget when the search never finishes, not a parsing error", async () => {
+  const paused = { status: 200, data: { stop_reason: "pause_turn", content: [{ type: "server_tool_use" }] } };
+  const f = fakeFetch([paused, paused, paused, paused, paused, paused, paused]);
+  const q = load({ fetch: f });
+  await assert.rejects(q.callClaude("k", "claude-opus-5", "p", () => {}), /still running after 5 continuations/);
+  assert.equal(f.calls.length, 6, "one initial call plus five continuations");
+  const summary = q.logs.find(l => l[0] === "info" && l[1] === "[recheck]");
+  assert.equal(summary[2].continuations, 5);
+});

@@ -912,6 +912,7 @@ Rules:
 /* Direct browser call to the Claude API with server-side web search. The key is sent only to api.anthropic.com. */
 const RECHECK_TIMEOUT_MS=5*60*1000; /* per API call; a search-heavy turn normally finishes well inside this */
 const RECHECK_MAX_TOKENS=16000;
+const RECHECK_MAX_CONTINUATIONS=5; /* pause_turn resumes before giving up */
 async function callClaude(key,model,prompt,onStatus){
  const headers={"content-type":"application/json","x-api-key":key,"anthropic-version":"2023-06-01","anthropic-dangerous-direct-browser-access":"true","anthropic-beta":"server-side-fallback-2026-07-01"};
  const user={role:"user",content:prompt};
@@ -931,12 +932,15 @@ async function callClaude(key,model,prompt,onStatus){
      throw new Error(msg);
    }
    /* Long searches pause server-side; resend the paused assistant turn unchanged to let it continue. */
-   if(data.stop_reason==="pause_turn"&&hops<5){ hops++; onStatus(`Still searching… (continuation ${hops} of 5)`); body.messages=[user,{role:"assistant",content:data.content}]; continue; }
+   if(data.stop_reason==="pause_turn"&&hops<RECHECK_MAX_CONTINUATIONS){ hops++; onStatus(`Still searching… (continuation ${hops} of ${RECHECK_MAX_CONTINUATIONS})`); body.messages=[user,{role:"assistant",content:data.content}]; continue; }
    break;
  }
  const u=data.usage||{}, searches=u.server_tool_use?u.server_tool_use.web_search_requests:null;
  /* One line per run so a failed or expensive recheck can be understood after the fact from the console. */
  console.info("[recheck]",{model:data.model||model,stop_reason:data.stop_reason,web_searches:searches,input_tokens:u.input_tokens,output_tokens:u.output_tokens,continuations:hops});
+ /* Still paused after the last continuation: the search ran out of budget. Say that, rather than handing a half-finished
+    turn to the JSON parser and reporting a parsing problem. */
+ if(data.stop_reason==="pause_turn") throw new Error(`the search was still running after ${RECHECK_MAX_CONTINUATIONS} continuations and was stopped; run again, or choose a faster model`);
  if(data.stop_reason==="refusal") throw new Error("the model declined this request"+(data.stop_details&&data.stop_details.explanation?": "+data.stop_details.explanation:"."));
  if(data.stop_reason==="max_tokens") throw new Error(`the reply was cut off at the ${RECHECK_MAX_TOKENS.toLocaleString("en-US")}-token output limit before it finished; run again, or ask for fewer changes`);
  const text=(data.content||[]).filter(b=>b.type==="text").map(b=>b.text).join("");
