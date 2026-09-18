@@ -20,7 +20,7 @@ Open `index.html` directly, or serve the folder so relative behaviour matches Gi
 npm run serve
 ```
 
-That runs `python -m http.server 8765 --bind 127.0.0.1`. The same command is in `.claude/launch.json` for the Claude Code browser preview.
+That runs `python -m http.server 8765 --bind 127.0.0.1`. Any static file server works; nothing in the page depends on the port.
 
 ## Tests
 
@@ -106,5 +106,5 @@ Option A sends the same prompt to the Claude API from the browser with server-si
 ## Repository notes
 
 - `index.html` is committed with LF line endings; Windows checkouts see CRLF through `core.autocrlf`. Editors should preserve whichever they find.
-- `practical-map-prompt-generator.prompt.md` is a task brief for a future feature, kept in the repo root but excluded from git.
 - `index.html.html` is a stray local copy and is ignored by `.gitignore`. Do not commit it.
+- Some working trees carry a local task brief, `practical-map-prompt-generator.prompt.md`. It is not part of the repository; if you have one, keep it out of git with `.git/info/exclude`, which is per-clone and never pushed.
