@@ -154,3 +154,19 @@ test("callClaude names the continuation budget when the search never finishes, n
   const summary = q.logs.find(l => l[0] === "info" && l[1] === "[recheck]");
   assert.equal(summary[2].continuations, 5);
 });
+
+test("the applied-change list is capped: oldest entries drop first, with a console warning, and state stays replayable", () => {
+  const q = load();
+  const many = Array.from({ length: q.MAX_APPLIED + 5 }, (_, i) => ({ kind: "capability", model: "opus", title: "tweak " + i, summary: "s" + i, patch: { depth: (i % 100) / 10 } }));
+  q.el("rcPaste").value = JSON.stringify({ checked_through: "2026-09-17", changes: many });
+  q.el("rcLoad").click();
+  q.el("rcApply").click();
+  assert.equal(q.rc.state.applied.length, q.MAX_APPLIED);
+  assert.equal(q.rc.state.applied[0].title, "tweak 5", "the five oldest were dropped");
+  assert.ok(q.logs.some(l => l[0] === "warn" && /capped at 200; dropped the 5 oldest/.test(l[1])));
+  const saved = JSON.parse(q.localStorage.getItem("pm_recheck"));
+  assert.equal(saved.applied.length, q.MAX_APPLIED);
+  // The last applied patch wins on replay, in a fresh load from the same storage.
+  const q2 = load({ storage: { local: q.localStorage } });
+  assert.equal(q2.models.find(m => m.id === "opus").depth, ((q.MAX_APPLIED + 4) % 100) / 10);
+});

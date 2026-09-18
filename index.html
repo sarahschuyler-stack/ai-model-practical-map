@@ -794,7 +794,17 @@ const SCORE_FIELDS=["breadth","depth","agent","code","long","research","multi","
 const rc={changes:[],through:null,state:null};
 
 function loadRc(){ try{ const s=JSON.parse(localStorage.getItem("pm_recheck")||"null"); if(s&&Array.isArray(s.applied)&&isoDate(s.asOf)) return s; }catch(e){ storageWarn("applied Recheck changes",e) } return {asOf:PUBLISHED_AS_OF,applied:[]}; }
-function saveRc(){ try{ localStorage.setItem("pm_recheck",JSON.stringify(rc.state)) }catch(e){ storageWarn("applied Recheck changes",e) } }
+/* Applied changes are replayed in order on every load, so the list only grows. Cap it well above any realistic use (a few dozen
+   per recheck) so a scripted or runaway paste cannot fill localStorage; the oldest entries go first, and the console says so. */
+const MAX_APPLIED=200;
+function saveRc(){
+ if(rc.state.applied.length>MAX_APPLIED){
+   const drop=rc.state.applied.length-MAX_APPLIED;
+   rc.state.applied.splice(0,drop);
+   console.warn(`[recheck] applied-change list capped at ${MAX_APPLIED}; dropped the ${drop} oldest`);
+ }
+ try{ localStorage.setItem("pm_recheck",JSON.stringify(rc.state)) }catch(e){ storageWarn("applied Recheck changes",e) }
+}
 function isoDate(s){ const m=String(s||"").match(/^\d{4}-\d{2}-\d{2}/); return m?m[0]:null; }
 function todayIso(){ return new Date().toLocaleDateString("en-CA"); }
 function fmtDate(iso){ const d=new Date(iso+"T00:00:00"); return isNaN(d)?iso:d.toLocaleDateString("en-US",{month:"long",day:"numeric",year:"numeric"}); }

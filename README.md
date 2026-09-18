@@ -101,7 +101,7 @@ Option A sends the same prompt to the Claude API from the browser with server-si
 - The chooser is a keyword heuristic. It reads the words you use, not the job behind them. Vague descriptions get general-purpose defaults.
 - Prices and plan quotas go stale. The snapshot date is in the hero; Recheck exists to move it forward.
 - Option A depends on the web-search tool type and beta header named in `callClaude()`. If Anthropic renames them the call will fail with a 400 that names the field. It has not been exercised against a live key in this repository.
-- Recheck state grows without a cap. Reset clears it.
+- Recheck keeps at most 200 applied changes in `localStorage`; beyond that the oldest are dropped with a console warning. Reset clears it.
 
 ## Repository notes
 
