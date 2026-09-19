@@ -3,6 +3,9 @@
 <head>
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1"/>
+<!-- Second layer behind esc(): even if an escaping slip let markup through, no external script, style, image or connection can
+     load, and the only network destination the page may open is the Claude API used by Recheck Option A. -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; connect-src https://api.anthropic.com; img-src data:; base-uri 'none'; form-action 'none'"/>
 <title>AI Model Practical Map — September 2026</title>
 <style>
 :root{
@@ -187,6 +190,7 @@ button.ghost{background:transparent;border:1px solid var(--line);color:#b8cae0}
 <div class="nav"><div class="navin">
 <a href="#chooser">Task chooser</a><a href="#mental">Mental model</a><a href="#map">Practical map</a><a href="#price">Cost</a><a href="#stack">Multi-model stack</a><a href="#sources">Sources</a>
 </div></div>
+<div class="note" id="storageNote" style="display:none" role="status"></div>
 
 <div class="card rc" id="rc">
   <div class="rchead">
@@ -399,7 +403,7 @@ function exampleCost(m){
 }
 function renderPricing(){
  document.getElementById("pricingRows").innerHTML=models.map(m=>`
-<tr><td><b>${esc(m.name)}</b></td><td>${esc(m.vendor)}</td><td>${m.input==null?"—":"$"+m.input.toFixed(m.input<1?2:2)}</td><td>${m.output==null?"—":"$"+m.output.toFixed(m.output<1?2:2)}</td><td>${exampleCost(m)}</td><td>${["","Very low","Low","Moderate","Premium","Frontier premium"][m.costTier]}</td></tr>`).join("");
+<tr><td><b>${esc(m.name)}</b></td><td>${esc(m.vendor)}</td><td>${m.input==null?"—":"$"+m.input.toFixed(2)}</td><td>${m.output==null?"—":"$"+m.output.toFixed(2)}</td><td>${exampleCost(m)}</td><td>${["","Very low","Low","Moderate","Premium","Frontier premium"][m.costTier]}</td></tr>`).join("");
 }
 
 const patterns = {
@@ -413,11 +417,13 @@ const patterns = {
  discipline:["spec","defined","routine","follow","exact","requirements","implementation","keep cost low","straightforward"]
 };
 /* Match a keyword only where it starts a word; keywords of three characters or fewer must also end one (a plural "s" is allowed).
-   Plain substring matching fired "api" on "rapidly", "test" on "latest" and "web" on "webhook". Keywords are plain text, no regex syntax. */
+   Plain substring matching fired "api" on "rapidly", "test" on "latest" and "web" on "webhook". Keywords are escaped before they
+   become a pattern, so a future "c++" or "node.js" keyword matches literally instead of as regex syntax. */
 const wordRe=new Map();
+const reEscape=s=>s.replace(/[.*+?^${}()|[\]\\]/g,"\\$&");
 function hasWord(text,k){
  let re=wordRe.get(k);
- if(!re){ re=new RegExp("(?:^|[^a-z0-9])"+k+(k.length<=3?"s?(?![a-z0-9])":"")); wordRe.set(k,re); }
+ if(!re){ re=new RegExp("(?:^|[^a-z0-9])"+reEscape(k)+(k.length<=3?"s?(?![a-z0-9])":"")); wordRe.set(k,re); }
  return re.test(text);
 }
 function signal(text,arr){let n=0;arr.forEach(k=>{if(hasWord(text,k)) n++});return Math.min(10,n*2.2)}
@@ -531,8 +537,19 @@ function complexity(n,text){
 function heavyLoad(n,text){ return n.agent>=4||n.long>=4||text.length>550; }
 function cxBand(c){ return c>=6?"high":c>=3?"mid":"low"; }
 function cxLabel(c){ return c>=6?"Hard, ambiguous or high-stakes":c>=3?"Real reasoning, bounded scope":"Routine or well-defined"; }
-function loadPlans(){ const d={chatgpt:"plus",claude:"pro"}; try{ return Object.assign(d,JSON.parse(localStorage.getItem("pm_plans")||"{}")) }catch(e){ return d } }
-function savePlans(){ try{ localStorage.setItem("pm_plans",JSON.stringify(pb.plans)) }catch(e){} }
+/* Browser storage can be blocked (private mode, site-data settings, a full quota) or hold something unreadable. Every read or write
+   used to swallow that in an empty catch, so applied changes vanished on reload with nothing said anywhere. Now each failure is
+   logged once per cause and the user sees one line explaining what will not be remembered. */
+const storageSeen=new Set();
+function storageWarn(what,e){
+ const key=what+":"+(e&&e.name||"");
+ if(!storageSeen.has(key)){ storageSeen.add(key); console.warn("[storage] "+what,e); }
+ const el=$("storageNote");
+ el.textContent="This browser is not letting the page save "+what+". Everything still works for this visit, but applied Recheck changes, your plan choices and the remembered key will not survive a reload. Allow site data for this page to fix it.";
+ el.style.display="block";
+}
+function loadPlans(){ const d={chatgpt:"plus",claude:"pro"}; try{ return Object.assign(d,JSON.parse(localStorage.getItem("pm_plans")||"{}")) }catch(e){ storageWarn("your plan choices",e); return d } }
+function savePlans(){ try{ localStorage.setItem("pm_plans",JSON.stringify(pb.plans)) }catch(e){ storageWarn("your plan choices",e) } }
 
 function planSubs(r,text){
  const c=complexity(r.n,text), band=cxBand(c), heavy=heavyLoad(r.n,text);
@@ -614,15 +631,17 @@ function renderSubs(){
    if($("output").style.display!=="none") renderOutput(); else renderWizard();
  });
 }
+/* → {m, label, sub}. `sub` is the subscription key ("chatgpt" | "claude") when the target is one of the user's plans, else null;
+   renderOutput reads it directly instead of sniffing the display label for a vendor name. */
 function resolveTarget(){
  const t=pb.target;
- if(targetLabels[t]) return {m:pb.rec[t],label:targetLabels[t]};
- if(subs[t]) return {m:pb.subs.items[t].pick,label:"Your "+subs[t].name};
+ if(targetLabels[t]) return {m:pb.rec[t],label:targetLabels[t],sub:null};
+ if(subs[t]) return {m:pb.subs.items[t].pick,label:"Your "+subs[t].name,sub:t};
  if(t.startsWith("m:")){
    const [,s,id]=t.split(":"); const it=pb.subs.items[s]; const m=it.tiers.find(x=>x.id===id);
-   return {m,label:"Your "+subs[s].name+(id===it.pick.id?"":id===it.fallback.id?" · fallback":" · alternate tier")};
+   return {m,label:"Your "+subs[s].name+(id===it.pick.id?"":id===it.fallback.id?" · fallback":" · alternate tier"),sub:s};
  }
- return {m:pb.rec.balanced,label:targetLabels.balanced};
+ return {m:pb.rec.balanced,label:targetLabels.balanced,sub:null};
 }
 
 const modelGuidance={
@@ -1357,8 +1376,8 @@ function renderOutput(){
  $("outTitle").textContent=`Prompt for ${m.name} · ${rt.label}`;
  $("promptOut").value=buildPrompt(m,g);
  let extra="";
- if(rt.label.startsWith("Your ")){
-   const s=rt.label.includes("ChatGPT")?"chatgpt":"claude", it=pb.subs.items[s];
+ if(rt.sub){
+   const s=rt.sub, it=pb.subs.items[s];
    if(m.id===it.fallback.id&&it.fallback.id!==it.pick.id) extra=` <b>Fallback tier:</b> this prompt is tuned for ${esc(m.name)} standing in for ${esc(it.pick.name)}. It already asks for stated assumptions and self-verification; review the hardest parts yourself.`;
    else if(s==="chatgpt"&&m.id==="astra"&&it.plan==="plus") extra=` <b>Where to run it:</b> on Plus, Astra is available inside Codex and Work mode, not the regular chat window.`;
    else if(s==="claude"&&m.id==="fable") extra=` <b>Where to run it:</b> Fable-tier access lives on Max only when Anthropic offers it in the app; if it is missing from your picker, switch the target to Opus 5.`;
@@ -1380,8 +1399,18 @@ const PATCH_FIELDS={input:"num",output:"num",name:"str",desc:"str",best:"str",ta
 const SCORE_FIELDS=["breadth","depth","agent","code","long","research","multi","discipline","value"];
 const rc={changes:[],through:null,state:null};
 
-function loadRc(){ try{ const s=JSON.parse(localStorage.getItem("pm_recheck")||"null"); if(s&&Array.isArray(s.applied)&&isoDate(s.asOf)) return s; }catch(e){} return {asOf:PUBLISHED_AS_OF,applied:[]}; }
-function saveRc(){ try{ localStorage.setItem("pm_recheck",JSON.stringify(rc.state)) }catch(e){} }
+function loadRc(){ try{ const s=JSON.parse(localStorage.getItem("pm_recheck")||"null"); if(s&&Array.isArray(s.applied)&&isoDate(s.asOf)) return s; }catch(e){ storageWarn("applied Recheck changes",e) } return {asOf:PUBLISHED_AS_OF,applied:[]}; }
+/* Applied changes are replayed in order on every load, so the list only grows. Cap it well above any realistic use (a few dozen
+   per recheck) so a scripted or runaway paste cannot fill localStorage; the oldest entries go first, and the console says so. */
+const MAX_APPLIED=200;
+function saveRc(){
+ if(rc.state.applied.length>MAX_APPLIED){
+   const drop=rc.state.applied.length-MAX_APPLIED;
+   rc.state.applied.splice(0,drop);
+   console.warn(`[recheck] applied-change list capped at ${MAX_APPLIED}; dropped the ${drop} oldest`);
+ }
+ try{ localStorage.setItem("pm_recheck",JSON.stringify(rc.state)) }catch(e){ storageWarn("applied Recheck changes",e) }
+}
 function isoDate(s){ const m=String(s||"").match(/^\d{4}-\d{2}-\d{2}/); return m?m[0]:null; }
 function todayIso(){ return new Date().toLocaleDateString("en-CA"); }
 function fmtDate(iso){ const d=new Date(iso+"T00:00:00"); return isNaN(d)?iso:d.toLocaleDateString("en-US",{month:"long",day:"numeric",year:"numeric"}); }
@@ -1503,6 +1532,7 @@ Rules:
 /* Direct browser call to the Claude API with server-side web search. The key is sent only to api.anthropic.com. */
 const RECHECK_TIMEOUT_MS=5*60*1000; /* per API call; a search-heavy turn normally finishes well inside this */
 const RECHECK_MAX_TOKENS=16000;
+const RECHECK_MAX_CONTINUATIONS=5; /* pause_turn resumes before giving up */
 async function callClaude(key,model,prompt,onStatus){
  const headers={"content-type":"application/json","x-api-key":key,"anthropic-version":"2023-06-01","anthropic-dangerous-direct-browser-access":"true","anthropic-beta":"server-side-fallback-2026-07-01"};
  const user={role:"user",content:prompt};
@@ -1522,12 +1552,15 @@ async function callClaude(key,model,prompt,onStatus){
      throw new Error(msg);
    }
    /* Long searches pause server-side; resend the paused assistant turn unchanged to let it continue. */
-   if(data.stop_reason==="pause_turn"&&hops<5){ hops++; onStatus(`Still searching… (continuation ${hops} of 5)`); body.messages=[user,{role:"assistant",content:data.content}]; continue; }
+   if(data.stop_reason==="pause_turn"&&hops<RECHECK_MAX_CONTINUATIONS){ hops++; onStatus(`Still searching… (continuation ${hops} of ${RECHECK_MAX_CONTINUATIONS})`); body.messages=[user,{role:"assistant",content:data.content}]; continue; }
    break;
  }
  const u=data.usage||{}, searches=u.server_tool_use?u.server_tool_use.web_search_requests:null;
  /* One line per run so a failed or expensive recheck can be understood after the fact from the console. */
  console.info("[recheck]",{model:data.model||model,stop_reason:data.stop_reason,web_searches:searches,input_tokens:u.input_tokens,output_tokens:u.output_tokens,continuations:hops});
+ /* Still paused after the last continuation: the search ran out of budget. Say that, rather than handing a half-finished
+    turn to the JSON parser and reporting a parsing problem. */
+ if(data.stop_reason==="pause_turn") throw new Error(`the search was still running after ${RECHECK_MAX_CONTINUATIONS} continuations and was stopped; run again, or choose a faster model`);
  if(data.stop_reason==="refusal") throw new Error("the model declined this request"+(data.stop_details&&data.stop_details.explanation?": "+data.stop_details.explanation:"."));
  if(data.stop_reason==="max_tokens") throw new Error(`the reply was cut off at the ${RECHECK_MAX_TOKENS.toLocaleString("en-US")}-token output limit before it finished; run again, or ask for fewer changes`);
  const text=(data.content||[]).filter(b=>b.type==="text").map(b=>b.text).join("");
@@ -1578,7 +1611,7 @@ $("rcRun").onclick=async()=>{
  if(!key){ rcStatus("Enter an Anthropic API key, or use Option B.","err"); $("rcKey").focus(); return }
  const model=$("rcModel").value;
  /* The key lives in sessionStorage only (this tab, cleared on close); it is never written to localStorage. */
- try{ if($("rcRemember").checked) sessionStorage.setItem("pm_apikey",key); else sessionStorage.removeItem("pm_apikey"); localStorage.setItem("pm_rcmodel",model) }catch(e){}
+ try{ if($("rcRemember").checked) sessionStorage.setItem("pm_apikey",key); else sessionStorage.removeItem("pm_apikey"); localStorage.setItem("pm_rcmodel",model) }catch(e){ storageWarn("the remembered key and model",e) }
  $("rcRun").disabled=true; rcStatus(`Searching with ${model}… this usually takes one to three minutes.`);
  try{
    const out=await callClaude(key,model,recheckPrompt(),m=>rcStatus(m));
@@ -1588,28 +1621,36 @@ $("rcRun").onclick=async()=>{
 };
 $("rcAll").onclick=()=>{ rc.changes.forEach(c=>c.selected=true); renderChanges() };
 $("rcNone").onclick=()=>{ rc.changes.forEach(c=>c.selected=false); renderChanges() };
+/* Two changes are the same only if everything that affects the map or the notes list matches. Matching on kind + model + title
+   alone dropped a second, different change that happened to reuse a headline, while the status line still counted it as applied. */
+function sameChange(a,b){
+ return a.kind===b.kind&&a.model===b.model&&a.title===b.title&&a.summary===b.summary&&(a.effective||null)===(b.effective||null)
+   &&JSON.stringify(a.patch||null)===JSON.stringify(b.patch||null);
+}
 $("rcApply").onclick=()=>{
  const sel=rc.changes.filter(c=>c.selected);
  const through=rc.through||todayIso();
+ let added=0, dup=0;
  sel.forEach(c=>{
    const {selected,uid,...rest}=c;
-   if(!rc.state.applied.some(a=>a.kind===rest.kind&&a.model===rest.model&&a.title===rest.title)) rc.state.applied.push(rest);
+   if(rc.state.applied.some(a=>sameChange(a,rest))) dup++; else { rc.state.applied.push(rest); added++; }
  });
  if(through>rc.state.asOf) rc.state.asOf=through;
  saveRc(); applyState();
  rc.changes=rc.changes.filter(c=>!c.selected); renderChanges();
  if(!rc.changes.length) $("rcResults").style.display="none";
- rcStatus(`Applied ${sel.length} change${sel.length===1?"":"s"}. Current view is now ${fmtDate(rc.state.asOf)}. Re-run the task chooser to use the updated data.`,"ok");
+ const dupNote=dup?` ${dup} ${dup===1?"was":"were"} already applied earlier and skipped.`:"";
+ rcStatus(`Applied ${added} change${added===1?"":"s"}.${dupNote} Current view is now ${fmtDate(rc.state.asOf)}. Re-run the task chooser to use the updated data.`,"ok");
  $("viewDate").scrollIntoView({behavior:"smooth",block:"center"});
 };
 $("rcReset").onclick=()=>{
- rc.state={asOf:PUBLISHED_AS_OF,applied:[]}; try{ localStorage.removeItem("pm_recheck") }catch(e){}
+ rc.state={asOf:PUBLISHED_AS_OF,applied:[]}; try{ localStorage.removeItem("pm_recheck") }catch(e){ storageWarn("applied Recheck changes",e) }
  applyState(); rcStatus("Back to the published snapshot of "+fmtDate(PUBLISHED_AS_OF)+".","ok");
 };
 
 /* Boot: restore remembered settings and any changes applied earlier in this browser, then draw the map. */
-try{ localStorage.removeItem("pm_apikey"); /* earlier versions kept the key on disk; purge it */ }catch(e){}
-try{ const k=sessionStorage.getItem("pm_apikey"); if(k){ $("rcKey").value=k; $("rcRemember").checked=true } const mm=localStorage.getItem("pm_rcmodel"); if(mm) $("rcModel").value=mm; }catch(e){}
+try{ localStorage.removeItem("pm_apikey"); /* earlier versions kept the key on disk; purge it */ }catch(e){ console.warn("[storage] could not purge a legacy key entry",e) }
+try{ const k=sessionStorage.getItem("pm_apikey"); if(k){ $("rcKey").value=k; $("rcRemember").checked=true } const mm=localStorage.getItem("pm_rcmodel"); if(mm) $("rcModel").value=mm; }catch(e){ storageWarn("the remembered key and model",e) }
 try{ rc.state=loadRc(); applyState(); }
 catch(e){ console.error("Recheck restore failed; showing the published snapshot.",e); rc.state={asOf:PUBLISHED_AS_OF,applied:[]}; renderModels(); renderPricing(); }
 </script>
