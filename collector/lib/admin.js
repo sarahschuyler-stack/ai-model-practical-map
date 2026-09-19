@@ -6,18 +6,25 @@ import { cookies } from "./http.js";
 
 export const COOKIE = "pm_admin";
 export const SESSION_SECONDS = 12 * 3600;
+/** ADMIN_KEY is both the password and the seed of the cookie-signing secret, so it has to be long. */
+export const MIN_KEY_LENGTH = 16;
 
 export function config(env = process.env) {
   const emails = String(env.ADMIN_EMAILS || "").split(",").map(s => s.trim().toLowerCase()).filter(Boolean);
   const key = String(env.ADMIN_KEY || "");
-  const ready = emails.length > 0 && key.length >= 8;
+  const ready = emails.length > 0 && key.length >= MIN_KEY_LENGTH;
   const secret = ready ? crypto.createHash("sha256").update("pm-admin-session:" + key).digest() : null;
   return { emails, key, ready, secret };
 }
 
+// Compared as HMACs of a per-process key rather than as raw bytes: timingSafeEqual
+// throws on a length mismatch, so the obvious `A.length === B.length && ...` leaks
+// the length of the secret through timing. Both digests are 32 bytes whatever came in.
+const EQ_KEY = crypto.randomBytes(32);
+
 export function safeEqual(a, b) {
-  const A = Buffer.from(String(a)), B = Buffer.from(String(b));
-  return A.length === B.length && crypto.timingSafeEqual(A, B);
+  const mac = v => crypto.createHmac("sha256", EQ_KEY).update(String(v)).digest();
+  return crypto.timingSafeEqual(mac(a), mac(b));
 }
 
 export function sign(email, cfg = config(), now = Date.now()) {
