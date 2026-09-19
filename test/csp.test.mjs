@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { html, load } from "./harness.mjs";
+import { html, pageCollectorUrl } from "./harness.mjs";
 
 /** The connect-src sources from the page's Content-Security-Policy meta tag. */
 function connectSrc() {
@@ -24,8 +24,9 @@ test("the CSP lets the page reach Anthropic and the collector, and nothing else"
 });
 
 test("whatever COLLECTOR_URL is set to is covered by the CSP", () => {
-  const p = load();
-  if (!p.COLLECTOR_URL) return; // empty in the repository; this guards the day it is filled in
-  const origin = new URL(p.COLLECTOR_URL).origin;
+  // Read the committed literal rather than the harness's, which always runs the script with tracking off.
+  const shipped = pageCollectorUrl();
+  if (!shipped) return; // empty in the repository; this guards the day it is filled in
+  const origin = new URL(shipped).origin;
   assert.ok(allowed(origin, connectSrc()), `${origin} must be listed in connect-src in the CSP meta tag, or every request will be blocked`);
 });
