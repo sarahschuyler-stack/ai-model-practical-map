@@ -1,6 +1,6 @@
 ---
 name: resolve-conflicts
-description: Resolve git merge and rebase conflicts on your own in any repository, without asking the user to pick "current", "incoming" or "both". Use this whenever a merge, pull, rebase or cherry-pick reports CONFLICT, whenever a pull request shows as un-mergeable or "This branch has conflicts", whenever the user pastes conflict markers (<<<<<<<, =======, >>>>>>>) or a screenshot of an editor's conflict view and asks which side to choose, and whenever main has moved ahead of a feature branch you are driving. The user has said they never want to be handed a conflict; the deliverable is a resolved, tested, pushed merge, not a question.
+description: Resolve git merge and rebase conflicts on your own in any repository, without asking the user to pick "current", "incoming" or "both". Use this whenever a merge, pull, rebase or cherry-pick reports CONFLICT, whenever a pull request shows as un-mergeable or "This branch has conflicts", whenever the user pastes conflict markers (the seven-character HEAD, separator and incoming lines) or a screenshot of an editor's conflict view and asks which side to choose, and whenever main has moved ahead of a feature branch you are driving. The user has said they never want to be handed a conflict; the deliverable is a resolved, tested, pushed merge, not a question.
 ---
 
 # Resolve conflicts on your own
