@@ -11,7 +11,11 @@ The small service behind the sign-in gate on `index.html`. It creates users, iss
    - `ADMIN_KEY` = a password you invent, at least 8 characters. Write it down somewhere safe. If you ever lose it, change it here; nothing else depends on it.
 4. **Redeploy** so the variables take effect: *Deployments → ⋯ on the latest → Redeploy*.
 5. **Log in once.** Open `https://<your-project>.vercel.app/admin/login`, enter your email and the key. The first successful login creates the database tables. You will land on an empty dashboard.
-6. **Point the page at it.** In `index.html`, near the top of the script, change `const COLLECTOR_URL = "";` to your Vercel URL, for example `const COLLECTOR_URL = "https://practical-map-collector.vercel.app";` (no trailing slash), commit, and push to `main`. GitHub Pages redeploys in a minute or two.
+6. **Point the page at it — two one-line edits in `index.html`.**
+   - Near the top of the script, change `const COLLECTOR_URL = "";` to your Vercel URL, for example `const COLLECTOR_URL = "https://practical-map-collector.vercel.app";` (no trailing slash).
+   - On line 8, add that same origin to the `connect-src` entry of the Content-Security-Policy meta tag, so `connect-src https://api.anthropic.com;` becomes `connect-src https://api.anthropic.com https://practical-map-collector.vercel.app;`. Without it the browser blocks every request to the collector and nothing is recorded. Write out the one exact origin: never `https://*.vercel.app`, which is a shared domain anyone can deploy to and would let a page-scripting slip send data to a stranger's app.
+
+   Then commit and push to `main`. GitHub Pages redeploys in a minute or two. `test/csp.test.mjs` checks that the policy still matches the one quoted in the root `README.md`, so update that quoted block in the same commit.
 7. **Try it.** Open the live page in a private window, enter an email, click around, then refresh the dashboard.
 
 Optional: `ALLOWED_ORIGIN` defaults to `https://sarahschuyler-stack.github.io`. Set it only if the page moves, or add `,http://127.0.0.1:8765` for local testing. Never commit any of these values; `.env.example` is the template.
@@ -56,7 +60,7 @@ npm run migrate           # or just log in once at http://localhost:3000/admin/l
 npm test                  # unit tests, database mocked, no network
 ```
 
-To exercise the page against it, set `COLLECTOR_URL` to `http://localhost:3000` in a local copy of `index.html`, add `http://127.0.0.1:8765` to `ALLOWED_ORIGIN` in `.env`, and run `npm run serve` at the repository root.
+To exercise the page against it, set `COLLECTOR_URL` to `http://localhost:3000` in a local copy of `index.html`, add `http://localhost:3000` to the `connect-src` entry of the CSP meta tag in that same local copy (the policy in the repository allows only `https://api.anthropic.com`, so the browser blocks it otherwise), add `http://127.0.0.1:8765` to `ALLOWED_ORIGIN` in `.env`, and run `npm run serve` at the repository root. Keep both local edits out of the commit.
 
 ## Privacy
 
