@@ -107,5 +107,5 @@ Option A sends the same prompt to the Claude API from the browser with server-si
 
 - `index.html` is committed with LF line endings; Windows checkouts see CRLF through `core.autocrlf`. Editors should preserve whichever they find.
 - `practical-map-prompt-generator.prompt.md` is a task brief for a future feature, kept in the repo root but excluded from git.
-- `email-gate-usage-tracking.prompt.md` is a committed task brief for an email sign-in gate plus usage tracking (page changes and a separate `collector/` service). It has not been built yet; the page still has no sign-in and sends nothing anywhere.
+- `email-gate-usage-tracking.prompt.md` is a committed task brief for an email access gate, first-party usage analytics and an admin dashboard (page changes plus a separate `collector/` service). It has not been built yet; the page still has no sign-in and sends nothing anywhere.
 - `index.html.html` is a stray local copy and is ignored by `.gitignore`. Do not commit it.
