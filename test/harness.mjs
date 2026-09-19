@@ -33,7 +33,7 @@ const bodyMarkup = html.slice(bodyStart + "<body>".length, start);
 // Every function and constant the tests need is returned from the evaluated script.
 const EXPORTS = [
   "models", "publishedModels", "PUBLISHED_AS_OF", "patterns", "stakesWords",
-  "signal", "needs", "capability", "recommend", "matchSignals", "complexity", "planSubs", "buildPrompt", "hasWord",
+  "signal", "needs", "capability", "capableThreshold", "recommend", "matchSignals", "complexity", "planSubs", "buildPrompt", "hasWord",
   "analyzeJob", "playbooks", "extractRequirements", "extractExclusions", "jobHints",
   "renderModels", "renderPricing", "renderRec", "exampleCost", "esc", "$",
   "cleanPatch", "normalizeChange", "parseResult", "applyPatch", "applyState", "isoDate", "todayIso", "fmtDate", "tierFor",
