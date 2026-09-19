@@ -104,6 +104,16 @@ button.ghost{background:transparent;border:1px solid var(--line);color:#b8cae0}
 .output textarea{min-height:380px;font-size:13px;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;line-height:1.55}
 .copied{color:var(--green);font-size:12px;font-weight:700;opacity:0;transition:opacity .2s}.copied.show{opacity:1}
 .tips{margin-top:12px;font-size:12px;color:#aabdd2;line-height:1.55}.tips b{color:white}
+.forge{padding:14px 16px;margin-bottom:12px;background:#120d24;border:1px solid #3b2f6b;border-radius:14px}
+.forge b{color:#d9ccff}
+.forge p{margin:5px 0 10px;color:var(--muted);font-size:12px;line-height:1.55;max-width:760px}
+.forge .rcrow{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.forge input[type=password]{flex:1;min-width:240px}
+.forge label{font-size:12px;color:#b8cae0;display:flex;gap:6px;align-items:center}
+.forgeviews{display:flex;gap:7px;align-items:center;flex-wrap:wrap;margin-top:11px}
+.forgeviews .choice.on{border-color:#8f7bff;background:#241a4a;color:white}
+.forgenote{font-size:11px;color:var(--muted)}
+.forge .rcstatus{margin-top:9px}
 .subsintro{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;align-items:end;margin-top:22px}
 .subsintro .rank{color:var(--green)}
 .subsintro p{margin:4px 0 0;color:var(--muted);font-size:12px;line-height:1.5;max-width:640px}
@@ -252,7 +262,7 @@ body.gated .wrap{filter:blur(4px);pointer-events:none;user-select:none}
 
 <section class="section" id="chooser">
 <h2>Describe the job. Get three model choices.</h2>
-<p class="intro">This runs entirely in your browser. It uses task signals plus the practical scores below—no API key and no hidden model call. The only thing sent anywhere is the usage record described at sign-in.</p>
+<p class="intro">This runs entirely in your browser. It uses task signals plus the practical scores below—no API key and no hidden model call. Step 2 can optionally call Claude Fable 5.1 to sharpen the prompt, but only when you ask it to and only with a key you supply. The only thing sent anywhere is the usage record described at sign-in.</p>
 <div class="card builder">
 <div class="rank" style="margin-bottom:10px">Step 1 · Describe the job</div>
 <textarea id="task" placeholder="Example: I have a 600-file accounting application repo. Find why the reconciliation engine occasionally double-posts, inspect the architecture, fix the bug, run tests, and challenge whether our current design is the right one."></textarea>
@@ -276,7 +286,7 @@ body.gated .wrap{filter:blur(4px);pointer-events:none;user-select:none}
   <div class="pbhead">
     <div class="rank">Step 2 · Build the prompt</div>
     <h3>Turn the job into a prompt for the recommended model</h3>
-    <p>The builder reads your Step 1 description, works out what kind of job it is, and writes a full brief around it: role, goal, requirements, domain rules, phased plan, tests and final deliverable. The short questions below layer detail on top; skip any you like. The result is tuned to the model you pick.</p>
+    <p>The builder reads your Step 1 description, works out what kind of job it is, and writes a full brief around it: role, goal, requirements, domain rules, phased plan, tests and final deliverable. The short questions below layer detail on top; skip any you like. The result is tuned to the model you pick — and if you have an Anthropic API key, the forge hands that draft to Claude Fable 5.1 for a doctorate-level rewrite.</p>
   </div>
   <div class="found" id="found"></div>
   <div class="subsintro">
@@ -293,6 +303,19 @@ body.gated .wrap{filter:blur(4px);pointer-events:none;user-select:none}
         <button class="ghost" id="editAnswers">Edit answers</button>
         <button class="primary" id="copyPrompt">Copy prompt</button>
       </div>
+    </div>
+    <div class="forge" id="forge">
+      <b>Prompt forge · powered by Claude Fable 5.1</b>
+      <p>The draft below is written by the built-in engine in your browser. Hand it to Fable 5.1 — the deepest reasoning model on this map — and it returns a doctorate-level brief for <span id="fgTarget">the chosen model</span>: sharper decomposition, explicit acceptance criteria, named failure modes, and instructions tuned to how that model actually behaves. Your key goes straight to Anthropic; the job description, your answers and the draft go with it, and nothing else leaves this page.</p>
+      <div class="rcrow"><input type="password" id="fgKey" placeholder="Anthropic API key (sk-ant-…)" autocomplete="off" spellcheck="false"/>
+        <label><input type="checkbox" id="fgRemember"/> Remember key for this tab</label>
+        <button class="primary" id="fgRun">Forge with Fable</button></div>
+      <div class="forgeviews" id="fgViews" style="display:none">
+        <button class="choice on" id="fgForged" data-v="forged">Fable version</button>
+        <button class="choice" id="fgDraft" data-v="draft">Built-in draft</button>
+        <span class="forgenote" id="fgMeta"></span>
+      </div>
+      <div class="rcstatus" id="fgStatus"></div>
     </div>
     <textarea id="promptOut" spellcheck="false"></textarea>
     <div class="tips" id="tips"></div>
@@ -1487,7 +1510,13 @@ function renderOutput(){
  const rt=resolveTarget(), m=rt.m, g=modelGuidance[m.id]||{role:"an expert assistant",style:"Work carefully and completely.",tips:"Edit the text above freely before copying."};
  if($("output").style.display==="none") trackEvent("prompt_built",{answers:Object.keys(pb.answers).length,model_id:m.id});
  $("outTitle").textContent=`Prompt for ${m.name} · ${rt.label}`;
- $("promptOut").value=buildPrompt(m,g);
+ forge.draft=buildPrompt(m,g);
+ /* A Fable brief is written for one target and one set of answers. Change either and it is stale, so drop it
+    rather than showing a brief tuned for a model the user is no longer targeting. */
+ const sig=forgeSig(m);
+ if(forge.forged&&forge.sig!==sig){ forge.forged=""; $("fgMeta").textContent=""; fgStatus("The target or your answers changed, so the earlier Fable brief was dropped. Forge again for this one."); }
+ renderForge(m);
+ showView(forge.forged?"forged":"draft");
  let extra="";
  if(rt.sub){
    const s=rt.sub, it=pb.subs.items[s];
@@ -1495,18 +1524,110 @@ function renderOutput(){
    else if(s==="chatgpt"&&m.id==="astra"&&it.plan==="plus") extra=` <b>Where to run it:</b> on Plus, Astra is available inside Codex and Work mode, not the regular chat window.`;
    else if(s==="claude"&&m.id==="fable") extra=` <b>Where to run it:</b> Fable-tier access lives on Max only when Anthropic offers it in the app; if it is missing from your picker, switch the target to Opus 5.`;
  }
- $("tips").innerHTML=`<b>Using this with ${esc(m.name)}:</b> ${esc(g.tips)}${extra} You can edit the prompt above before copying.`;
+ $("tips").innerHTML=`<b>Using this with ${esc(m.name)}:</b> ${esc(g.tips)}${extra} You can edit the prompt above before copying, and the forge panel hands the draft to Fable 5.1 for a deeper rewrite tuned to ${esc(m.name)}.`;
  $("output").style.display="block";
  $("output").scrollIntoView({behavior:"smooth",block:"nearest"});
 }
 $("copyPrompt").onclick=async()=>{
  const t=$("promptOut");
- trackEvent("prompt_copied",{model_id:resolveTarget().m.id});
+ trackEvent("prompt_copied",{model_id:resolveTarget().m.id,source:forge.view==="forged"?"fable":"builtin"});
  try{ await navigator.clipboard.writeText(t.value) }
  catch(e){ t.focus(); t.select(); document.execCommand("copy"); t.setSelectionRange(0,0); t.blur() }
  const c=$("copied"); c.classList.add("show"); clearTimeout(pb.ct); pb.ct=setTimeout(()=>c.classList.remove("show"),1800);
 };
 $("editAnswers").onclick=()=>{trackEvent("prompt_edited");pb.step=0; $("output").style.display="none"; renderWizard(); $("wizard").scrollIntoView({behavior:"smooth",block:"nearest"})};
+
+/* ---------- Prompt forge: Claude Fable 5.1 rewrites the draft into a doctorate-level brief ----------
+   The built-in engine in this page always runs first and its output is the draft. The forge is optional and additive:
+   it sends that draft, the requester's own words, the wizard answers and a profile of the target model to Fable 5.1 —
+   the deepest reasoning model on the map — and asks for the brief a specialist in the job's own field would write.
+   The draft is never discarded, so a failed, slow, or unavailable Fable call costs the user nothing but the wait.
+   The key is sent to api.anthropic.com and nowhere else, and is held in tab session storage only, like the Recheck key. */
+const FORGE_MODEL="claude-fable-5-1";
+const FORGE_MAX_TOKENS=12000;
+const FORGE_SYSTEM=`You are a principal prompt engineer with doctorate-level command of both the subject matter in front of you and the failure behavior of large language models. You do not perform the job described to you. You write the prompt that another model will execute, and it must be the best prompt that job could have.
+
+Hold every prompt you write to this standard:
+1. Fidelity. Every requirement, constraint and exclusion in the requester's own words survives into the prompt, in their sense. Add no scope they did not ask for, and remove none they did. Where their wording is ambiguous, resolve it explicitly in the prompt and say which reading you chose.
+2. Decomposition. Break the work into ordered phases with a real decision or check at each boundary, not a generic plan-do-review. The phases must be the ones this job actually has.
+3. Acceptance criteria. State testable, observable conditions that let the executing model tell finished from nearly finished. Prefer criteria that can be checked by running, measuring or comparing something over criteria that can only be asserted.
+4. Failure modes. Name the specific ways this job goes wrong — both the domain traps a specialist would anticipate and the model traps that apply here: silent assumptions, invented sources or APIs, over-generalizing from one example, scope creep, stopping at the first plausible answer, declaring success without verifying. Say how to avoid each one, concretely.
+5. Epistemics. Require stated assumptions, calibrated confidence, evidence tied to its source, and a clear line between what was verified and what was inferred.
+6. Model fit. Tune density, autonomy and invited pushback to the target model named below. A disciplined executor gets a tighter specification and narrower latitude. A deep reasoner gets the ambiguity, the stakes, and explicit permission to challenge the framing. A cheaper or smaller model gets shorter steps, more explicit checks, and less to hold in mind at once.
+7. Economy. Every sentence earns its place. No praise, no filler, no restating the obvious, and no talk about prompting itself.
+
+Output contract: return the finished prompt and nothing else. Address the executing model directly in the second person. Use markdown headings. Do not wrap it in a code fence, do not introduce it, do not summarize it afterwards, and do not comment on your own choices.`;
+const forge={draft:"",forged:"",view:"draft",sig:"",busy:false};
+function forgeSig(m){ return [m.id,$("task").value.trim(),JSON.stringify(pb.answers)].join("\u0000"); }
+/* Everything the author needs about the target and the job, in one message. The draft goes last, as a floor to beat. */
+function forgeBrief(m,g,draft){
+ const j=analyzeJob($("task").value.trim());
+ const ans=Object.entries(pb.answers).filter(([,v])=>v&&v.length).map(([k,v])=>`- ${k}: ${Array.isArray(v)?v.join(", "):v}`);
+ const hints=jobHints(j);
+ return `TARGET MODEL — the prompt you write will be executed by this model, not by you.
+Name: ${m.name} (${m.vendor})
+Practical profile, 0-10: breadth ${m.breadth}, depth ${m.depth}, agentic ${m.agent}, coding ${m.code}, long-context ${m.long}, research ${m.research}, multimodal ${m.multi}, spec-discipline ${m.discipline}, value ${m.value}
+Known strengths: ${m.best}
+How it works best: ${g.role}. ${g.style} ${g.tips}
+
+THE JOB, in the requester's own words:
+"""
+${$("task").value.trim()}
+"""
+
+What the page detected in that description: primary kind ${j.kinds.primary}${j.kinds.code?" (involves code)":""}${hints.length?"; domains: "+hints.join(", "):""}.
+${j.exclusions.length?"Ruled out by the requester: "+j.exclusions.join("; ")+".":"No explicit exclusions stated."}
+
+The requester also answered:
+${ans.length?ans.join("\n"):"- (nothing; they skipped the questions, so infer sensible defaults and say what you assumed inside the prompt)"}
+
+A deterministic draft of the prompt follows. It is the floor, not the ceiling. Keep what is genuinely right, cut what is boilerplate, and rewrite everything else to the standard above. It is not sacred: reorganize it freely if the job wants a different shape.
+"""
+${draft}
+"""
+
+Write the prompt now.`;
+}
+function fgStatus(msg,cls){ const el=$("fgStatus"); el.textContent=msg||""; el.className="rcstatus"+(cls?" "+cls:""); }
+/* Keep whatever the user has typed into the box before switching views, so edits survive a toggle. */
+function stashView(){ if(forge.view==="forged") forge.forged=$("promptOut").value; else forge.draft=$("promptOut").value; }
+function showView(v){ forge.view=v; $("promptOut").value=v==="forged"?forge.forged:forge.draft; $("fgForged").classList.toggle("on",v==="forged"); $("fgDraft").classList.toggle("on",v!=="forged"); }
+function renderForge(m){
+ $("fgTarget").textContent=m.name;
+ $("fgViews").style.display=forge.forged?"flex":"none";
+ $("fgRun").textContent=forge.forged?"Forge again":"Forge with Fable";
+}
+$("fgForged").onclick=()=>{ if(!forge.forged) return; stashView(); showView("forged") };
+$("fgDraft").onclick=()=>{ stashView(); showView("draft") };
+$("fgRun").onclick=async()=>{
+ if(forge.busy) return;
+ const key=$("fgKey").value.trim();
+ if(!key){ fgStatus("Enter an Anthropic API key. Fable 5.1 is an API call, so it needs one — the draft below stays free either way.","err"); $("fgKey").focus(); return }
+ const rt=resolveTarget(), m=rt.m, g=modelGuidance[m.id]||{role:"an expert assistant",style:"Work carefully and completely.",tips:""};
+ try{ if($("fgRemember").checked) sessionStorage.setItem("pm_apikey",key); else sessionStorage.removeItem("pm_apikey") }catch(e){ storageWarn("the remembered key",e) }
+ stashView();
+ trackEvent("prompt_forge_run",{model_id:m.id});
+ forge.busy=true; $("fgRun").disabled=true;
+ fgStatus(`Fable 5.1 is writing the brief for ${m.name}… this usually takes under a minute.`);
+ try{
+   const out=await callClaude(key,FORGE_MODEL,forgeBrief(m,g,forge.draft),msg=>fgStatus(msg),
+     {search:false,system:FORGE_SYSTEM,maxTokens:FORGE_MAX_TOKENS,label:"forge"});
+   const text=stripFence(out.text);
+   if(!text) throw new Error("the reply came back empty");
+   forge.forged=text; forge.sig=forgeSig(m);
+   $("fgMeta").textContent=`Written by ${out.model} for ${m.name}`;
+   renderForge(m); showView("forged");
+   trackEvent("prompt_forged",{model_id:m.id});
+   fgStatus("Fable rewrote the brief. Compare it with the built-in draft and edit either one before copying.","ok");
+ }catch(e){ fgStatus("Fable could not write this one: "+e.message+". The built-in draft below is unchanged and still yours to use.","err") }
+ finally{ forge.busy=false; $("fgRun").disabled=false }
+};
+/* Models sometimes wrap the whole answer in a fence despite the output contract. Unwrap only a fence that owns the reply. */
+function stripFence(t){
+ const s=String(t||"").trim();
+ const m=s.match(/^```[a-zA-Z]*\n([\s\S]*)\n```$/);
+ return (m?m[1]:s).trim();
+}
 
 /* ---------- Recheck: search for the latest price / capability / functionality changes, pick which to apply ---------- */
 const PATCH_FIELDS={input:"num",output:"num",name:"str",desc:"str",best:"str",tags:"arr",breadth:"score",depth:"score",agent:"score",code:"score",long:"score",research:"score",multi:"score",discipline:"score",value:"score",costTier:"tier"};
@@ -1647,10 +1768,14 @@ Rules:
 const RECHECK_TIMEOUT_MS=5*60*1000; /* per API call; a search-heavy turn normally finishes well inside this */
 const RECHECK_MAX_TOKENS=16000;
 const RECHECK_MAX_CONTINUATIONS=5; /* pause_turn resumes before giving up */
-async function callClaude(key,model,prompt,onStatus){
+async function callClaude(key,model,prompt,onStatus,opts){
+ const o=opts||{}, maxTokens=o.maxTokens||RECHECK_MAX_TOKENS, label=o.label||"recheck";
  const headers={"content-type":"application/json","x-api-key":key,"anthropic-version":"2023-06-01","anthropic-dangerous-direct-browser-access":"true","anthropic-beta":"server-side-fallback-2026-07-01"};
  const user={role:"user",content:prompt};
- const body={model,max_tokens:RECHECK_MAX_TOKENS,messages:[user],tools:[{type:"web_search_20260318",name:"web_search",max_uses:15}],fallbacks:"default"};
+ const body={model,max_tokens:maxTokens,messages:[user],fallbacks:"default"};
+ /* Recheck needs the server-side search tool; the prompt forge is pure authoring and gets none. */
+ if(o.search!==false) body.tools=[{type:"web_search_20260318",name:"web_search",max_uses:15}];
+ if(o.system) body.system=o.system;
  let data, hops=0;
  for(;;){
    const ctrl=new AbortController(), timer=setTimeout(()=>ctrl.abort(),RECHECK_TIMEOUT_MS);
@@ -1670,13 +1795,13 @@ async function callClaude(key,model,prompt,onStatus){
    break;
  }
  const u=data.usage||{}, searches=u.server_tool_use?u.server_tool_use.web_search_requests:null;
- /* One line per run so a failed or expensive recheck can be understood after the fact from the console. */
- console.info("[recheck]",{model:data.model||model,stop_reason:data.stop_reason,web_searches:searches,input_tokens:u.input_tokens,output_tokens:u.output_tokens,continuations:hops});
+ /* One line per run so a failed or expensive call can be understood after the fact from the console. */
+ console.info("["+label+"]",{model:data.model||model,stop_reason:data.stop_reason,web_searches:searches,input_tokens:u.input_tokens,output_tokens:u.output_tokens,continuations:hops});
  /* Still paused after the last continuation: the search ran out of budget. Say that, rather than handing a half-finished
     turn to the JSON parser and reporting a parsing problem. */
  if(data.stop_reason==="pause_turn") throw new Error(`the search was still running after ${RECHECK_MAX_CONTINUATIONS} continuations and was stopped; run again, or choose a faster model`);
  if(data.stop_reason==="refusal") throw new Error("the model declined this request"+(data.stop_details&&data.stop_details.explanation?": "+data.stop_details.explanation:"."));
- if(data.stop_reason==="max_tokens") throw new Error(`the reply was cut off at the ${RECHECK_MAX_TOKENS.toLocaleString("en-US")}-token output limit before it finished; run again, or ask for fewer changes`);
+ if(data.stop_reason==="max_tokens") throw new Error(`the reply was cut off at the ${maxTokens.toLocaleString("en-US")}-token output limit before it finished; run again, or ask for fewer changes`);
  const text=(data.content||[]).filter(b=>b.type==="text").map(b=>b.text).join("");
  return {text,searches,model:data.model||model};
 }
@@ -1906,7 +2031,8 @@ $("signOut").onclick=()=>gate.signOut();
 
 /* Boot: restore remembered settings and any changes applied earlier in this browser, then draw the map. */
 try{ localStorage.removeItem("pm_apikey"); /* earlier versions kept the key on disk; purge it */ }catch(e){ console.warn("[storage] could not purge a legacy key entry",e) }
-try{ const k=sessionStorage.getItem("pm_apikey"); if(k){ $("rcKey").value=k; $("rcRemember").checked=true } const mm=localStorage.getItem("pm_rcmodel"); if(mm) $("rcModel").value=mm; }catch(e){ storageWarn("the remembered key and model",e) }
+/* One key serves both the Recheck call and the prompt forge; it is the same account and the same tab-only storage. */
+try{ const k=sessionStorage.getItem("pm_apikey"); if(k){ $("rcKey").value=k; $("rcRemember").checked=true; $("fgKey").value=k; $("fgRemember").checked=true } const mm=localStorage.getItem("pm_rcmodel"); if(mm) $("rcModel").value=mm; }catch(e){ storageWarn("the remembered key and model",e) }
 try{ rc.state=loadRc(); applyState(); }
 catch(e){ console.error("Recheck restore failed; showing the published snapshot.",e); rc.state={asOf:PUBLISHED_AS_OF,applied:[]}; renderModels(); renderPricing(); }
 if(!COLLECTOR_URL) console.info("Usage tracking is off: COLLECTOR_URL is empty.");
