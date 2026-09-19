@@ -791,7 +791,8 @@ function renderWizard(){
    kind of work, and fires the playbooks whose subject it mentions. A playbook is a block of domain knowledge (an email access
    gate, usage analytics, a market scan, a decision memo...) that contributes goal bullets, requirement sections, implementation
    phases, tests, constraints and final-deliverable items. `buildPrompt()` assembles those into one brief and layers the wizard
-   answers on top. `strong` words fire a playbook alone; `weak` words need two hits. All matching is word-boundary via hasWord(). */
+   answers on top. A `strong` phrase or distinctive word fires a playbook alone; an everyday `strong` word and every `weak` word
+   need a second hit, and anything the requester ruled out is suppressed. All matching is word-boundary via hasWord(). */
 
 const NEG_RE=/\b(?:no|not|never|without|don't|dont|do not|avoid|shouldn't|should not|can't|cannot|excluding|instead of)\b/i;
 /* Lead-ins that talk about the prompt rather than the job: "I want a prompt to...", "write me a prompt that...", "please...". */
@@ -844,6 +845,7 @@ function extractExclusions(text){
 const playbooks=[
  /* ---- software work ---- */
  {id:"code_core",label:"Codebase work",kind:"code",strong:[],weak:[],when:j=>j.kinds.code,
+  excl:[], /* the kind of job, not a subject a requester rules out */
   goal:j=>[`Deliver working software in the ${j.appNoun}, integrated with the existing stack, not a description of what could be built.`],
   sections:j=>[["Repository Assessment",
    "Before writing code, inspect the repository and record, in your first message back:",
@@ -862,6 +864,7 @@ const playbooks=[
   done:j=>`The change is implemented in the ${j.appNoun}, covered by tests, documented, and summarized so I can review and deploy it without further investigation.`},
 
  {id:"access_gate",label:"Email or login gate",kind:"code",
+  excl:["login","log in","logon","sign in","sign-in","signin","sign up","signup","authentication","authenticate","auth","gate","access gate","identity gate","login page","login screen","accounts","user accounts"],
   strong:["login","log in","logon","log on","sign in","sign-in","signin","sign up","signup","authentication","authenticate","password","passwordless","magic link","sso","oauth","access gate","gated","gate","paywall","who accessed","who accesses","who is using","by who","by whom","identify visitors","identify users"],
   weak:["email","visitors","access","users","identity"],implies:["database"],
   goal:j=>[j.passwordless
@@ -900,6 +903,7 @@ const playbooks=[
   deliver:j=>["how identity and sessions are stored, and how to upgrade to verified sign-in later"]},
 
  {id:"usage_analytics",label:"Usage analytics",kind:"code",
+  excl:["analytics","tracking","track","track usage","usage tracking","telemetry","instrumentation","metrics","usage data"],
   strong:["analytics","tracking","track usage","usage","telemetry","how often","how long","how many people","how many users","who accessed","who uses","who is using","visits","page views","pageviews","access log","instrument","metrics on","measure usage"],
   weak:["see","view","monitor","report","track","accessed","users","visitors"],implies:["database","admin_dashboard"],
   goal:j=>["First-party usage analytics stored in our own database: who used the application, when they first and last came, visit and session counts, active time, and which parts of the application they used."],
@@ -928,6 +932,7 @@ const playbooks=[
   deliver:j=>["events being tracked, with the name and meaning of each","how session duration and active time are calculated"]},
 
  {id:"admin_dashboard",label:"Admin view",kind:"code",
+  excl:["admin","admin view","admin page","admin dashboard","dashboard","back office","backoffice","reporting view","overview page"],
   strong:["admin","dashboard","admin view","admin page","back office","backoffice","internal tool","reporting view","overview page"],weak:["see","report","summary","view","overview"],
   goal:j=>["An admin-only view where I can see the results, protected on the server, not merely hidden in the UI."],
   sections:(j)=>{
@@ -950,6 +955,7 @@ const playbooks=[
   deliver:j=>["how to designate administrators and reach the admin view"]},
 
  {id:"database",label:"Database and migrations",kind:"code",
+  excl:["database","db","schema","migration","migrations","table","tables","data model","persistence","supabase","postgres","postgresql","mysql","sqlite","mongodb","mongo","firebase","firestore","prisma","drizzle"],
   strong:["database","db","supabase","postgres","postgresql","mysql","sqlite","mongodb","mongo","firebase","firestore","prisma","drizzle","schema","migration","migrations","table","tables","persist","store the","save the"],weak:["store","save","records","data model"],
   sections:j=>[["Database Rules",
    "Use the database the project already has. If it has none, choose the lightest option that fits the hosting platform, say why, and keep the data access behind one module so it can be swapped.",
@@ -961,6 +967,7 @@ const playbooks=[
   deliver:j=>["database migrations created and the resulting schema","environment variables required, with placeholders in `.env.example`"]},
 
  {id:"api_backend",label:"API and server",kind:"code",
+  excl:["api","apis","endpoint","endpoints","backend","back-end","server","serverless","webhook","webhooks","graphql","route handler"],
   strong:["api","apis","endpoint","endpoints","backend","back-end","server","serverless","webhook","webhooks","rest","graphql","edge function","cloud function","lambda","route handler"],weak:["request","response","json","fetch"],
   sections:j=>[["API and Server Rules",
    "Validate every input server-side with explicit types and limits; reject unknown fields.",
@@ -971,6 +978,7 @@ const playbooks=[
   tests:j=>["Unauthenticated or unauthorized requests to protected endpoints are rejected.","Malformed input is rejected with a clear error and does not reach the database."]},
 
  {id:"frontend_ui",label:"User interface",kind:"code",
+  excl:["ui","user interface","interface","frontend","front-end","front end","page","pages","screen","layout","design","css","styling","component","components"],
   strong:["ui","user interface","frontend","front-end","front end","page","pages","form","button","component","components","screen","layout","design","css","responsive","modal","navigation","menu","theme","dark mode"],weak:["field","click","display","show"],
   sections:j=>[["User Interface",
    "Match the existing design language: reuse the project's components, spacing, colors and typography. Do not introduce a new UI framework or design system for this feature.",
@@ -979,6 +987,7 @@ const playbooks=[
   tests:j=>["New screens render correctly at phone and desktop widths and are operable by keyboard."]},
 
  {id:"bugfix",label:"Bug diagnosis",kind:"code",
+  excl:["bug","bugs","debug","debugging","root cause","diagnosis","investigation"],
   strong:["bug","bugs","debug","broken","crash","crashes","intermittent","intermittently","flaky","regression","root cause","double-post","double posts","doesn't work","does not work","not working","failing","fails","incorrect result","wrong result","race condition","memory leak"],weak:["fix","error","issue","problem","sometimes","occasionally"],
   goal:j=>["Find and fix the root cause, prove it with a test that failed before the fix and passes after, and leave the surrounding behavior unchanged."],
   sections:j=>[["Diagnosis Discipline",
@@ -992,6 +1001,7 @@ const playbooks=[
   deliver:j=>["root cause, in plain language, and the evidence that confirmed it"]},
 
  {id:"refactor_migration",label:"Refactor or migration",kind:"code",
+  excl:["refactor","refactoring","rewrite","restructure","modernize","modernise","port","migration"],
   strong:["refactor","refactoring","modernize","modernise","migrate to","migrate from","move from","switch from","convert to","port to","upgrade to","rewrite","restructure","clean up the code","technical debt"],weak:["upgrade","migrate","restructure","simplify"],
   sections:j=>[["Preserving Behavior",
    "Before changing structure, capture current behavior with characterization tests where coverage is thin.",
@@ -1001,6 +1011,7 @@ const playbooks=[
   tests:j=>["Behavior before and after is identical for the covered paths; any intentional difference is listed."]},
 
  {id:"public_repo",label:"Public repository",kind:"code",
+  excl:["public","publicly","open source","open-source","public repo","public repository","github pages"],
   strong:["public","publicly","open source","open-source","open sourced","github pages","made public","open repo","public repo","public repository"],weak:["github","online","anyone"],when:j=>j.kinds.code,
   sections:j=>[["Public Repository Considerations",
    "This repository is (or may become) public. Assume every committed byte is visible to the world.",
@@ -1012,6 +1023,7 @@ const playbooks=[
   deliver:j=>["security protections implemented, including how secrets are kept out of the repository"]},
 
  {id:"payments",label:"Payments",kind:"code",
+  excl:["payment","payments","stripe","checkout","billing","subscription","subscriptions","invoice","invoices","paywall","paypal"],
   strong:["stripe","payment","payments","checkout","billing","subscription","subscriptions","invoice","invoices","paypal","credit card","pricing plan","paywall"],weak:["charge","purchase","pay"],
   sections:j=>[["Payments",
    "Use the provider's hosted checkout or elements; never handle raw card data in our code.",
@@ -1021,6 +1033,7 @@ const playbooks=[
   tests:j=>["A replayed webhook does not create a duplicate record.","A failed payment leaves the account in a correct, explainable state."]},
 
  {id:"email_delivery",label:"Sending email",kind:"code",
+  excl:["email","emails","send email","notification","notifications","newsletter","smtp","mail"],
   strong:["send email","send an email","send emails","email notification","email notifications","transactional email","smtp","resend","sendgrid","postmark","mailgun","newsletter","magic link","verification email","welcome email"],weak:["notify","notification","inbox"],
   sections:j=>[["Email Delivery",
    "Send through one provider module configured by environment variables, with a no-send or log-only mode for local development and tests.",
@@ -1030,6 +1043,7 @@ const playbooks=[
   tests:j=>["In development, no real email is sent and the rendered message can be inspected.","Expired or reused tokens are rejected."]},
 
  {id:"file_upload",label:"File uploads",kind:"code",
+  excl:["upload","uploads","uploading","attachment","attachments","file storage","bucket","s3"],
   strong:["upload","uploads","uploading","attachment","attachments","file storage","image storage","s3","blob storage","bucket","user files"],weak:["files","images","photos","documents"],
   sections:j=>[["File Uploads and Storage",
    "Enforce size and type limits on the server, not only in the browser. Sniff content type; do not trust the extension.",
@@ -1039,6 +1053,7 @@ const playbooks=[
   tests:j=>["An oversized or disallowed file is rejected server-side.","A user cannot fetch another user's file by guessing its path."]},
 
  {id:"ai_feature",label:"AI integration",kind:"code",
+  excl:["llm","ai","chatbot","gpt","openai","anthropic","embedding","embeddings","rag","vector search","model call"],
   strong:["llm","large language model","chatbot","chat bot","gpt","claude","openai","anthropic","gemini api","embedding","embeddings","rag","vector search","vector database","ai assistant","ai feature","model call","completion api","prompt injection"],weak:["ai","prompt","model","assistant","summarize","generate"],
   sections:j=>[["AI Integration",
    "Call the model from the server; API keys never reach the browser. Choose the model and parameters through configuration, not literals scattered in code.",
@@ -1049,6 +1064,7 @@ const playbooks=[
   tests:j=>["A provider timeout or error degrades gracefully instead of breaking the page.","An input containing instructions to the model is treated as data."]},
 
  {id:"deploy_hosting",label:"Deployment",kind:"code",
+  excl:["deploy","deployment","deploying","hosting","docker","kubernetes","ci/cd","github actions","pipeline","release"],
   strong:["deploy","deployment","deploying","hosting","host it","vercel","netlify","render.com","fly.io","heroku","railway","docker","dockerfile","kubernetes","ci/cd","github actions","pipeline","production release"],weak:["production","release","ship","live"],
   sections:j=>[["Deployment",
    "Keep the build reproducible from a clean checkout with one documented command. Configuration comes from environment variables, never from committed files.",
@@ -1058,6 +1074,7 @@ const playbooks=[
   deliver:j=>["deployment steps and the exact platform settings I must change"]},
 
  {id:"performance",label:"Performance",kind:"code",
+  excl:["performance","optimization","optimisation","optimize","optimise","caching","cache","latency","tuning"],
   strong:["slow","performance","latency","optimize","optimise","optimization","speed up","faster","load time","caching","cache","scalability","scale to","too long to load","time out","times out"],weak:["fast","quick","scale","efficient"],
   sections:j=>[["Performance Method",
    "Measure first: record the baseline with a repeatable benchmark or profile before changing code, and state the target.",
@@ -1067,6 +1084,7 @@ const playbooks=[
   tests:j=>["The benchmark shows the improvement and no other measured path got slower."]},
 
  {id:"security_review",label:"Security review",kind:"code",
+  excl:["security","security review","audit","hardening","penetration test","threat model"],
   strong:["security","secure","vulnerability","vulnerabilities","pentest","penetration test","owasp","xss","csrf","sql injection","injection","harden","hardening","threat model","audit the code","security audit"],weak:["attack","exploit","risk","permissions"],
   sections:j=>[["Security Review Method",
    "Start with a short threat model: assets, entry points, who the attackers are and what they would want.",
@@ -1077,6 +1095,7 @@ const playbooks=[
   deliver:j=>["findings by severity, with what was fixed and what remains"]},
 
  {id:"data_pipeline",label:"Data import or scraping",kind:"code",
+  excl:["scrape","scraping","scraper","crawl","crawler","import","importer","etl","ingest","ingestion","data pipeline","sync"],
   strong:["scrape","scraping","scraper","crawl","crawler","import","importer","etl","ingest","ingestion","sync data","data pipeline","pull data from","export to csv","bulk load"],weak:["csv","feed","fetch","batch"],
   sections:j=>[["Pipeline Rules",
    "Make every step idempotent and resumable: re-running after a failure must not duplicate or lose records.",
@@ -1086,6 +1105,7 @@ const playbooks=[
   tests:j=>["Running the pipeline twice on the same input yields the same stored result.","Malformed rows are quarantined with a reason rather than aborting the run."]},
 
  {id:"testing_ci",label:"Tests and CI",kind:"code",
+  excl:["test","tests","testing","unit tests","test suite","coverage","ci","continuous integration"],
   strong:["test coverage","unit tests","unit test","integration tests","integration test","e2e","end-to-end tests","end to end tests","test suite","write tests","add tests","continuous integration","ci pipeline","run tests"],weak:["tests","coverage","ci","assert"],
   sections:j=>[["Testing Standards",
    "Test behavior through public interfaces, not implementation details. Cover the happy path, the main error paths and the edge cases the job mentions.",
@@ -1094,6 +1114,7 @@ const playbooks=[
 
  /* ---- research, analysis, documents, writing, agents ---- */
  {id:"market_research",label:"Market or competitor research",kind:"research",
+  excl:["research","competitor","competitors","market research","web search","browsing","the web","internet","sources"],
   strong:["competitor","competitors","competitive","market research","market landscape","landscape","alternatives to","products like","vendors","who else does","what tools exist","compare products","compare tools","obscure products"],weak:["market","products","research","compare","reddit","social","web"],
   goal:j=>["A current, sourced picture of the landscape that I could act on without redoing the research: who the players are, how they compare, and what I probably did not know."],
   sections:j=>[
@@ -1118,7 +1139,8 @@ const playbooks=[
   done:j=>"A deduplicated, sourced, current comparison plus a short synthesis that someone could act on without repeating the research."},
 
  {id:"document_review",label:"Document set review",kind:"documents",
-  strong:["pdf","pdfs","document set","documents","spreadsheets","contracts","transcripts","records","evidence","reconcile","discovery","case file","case files","read through all","go through all"],weak:["files","reports","emails","attachments","pages"],
+  excl:["document","documents","document review","pdf","pdfs","contracts","transcripts","records","attachments"],
+  strong:["pdf","pdfs","document set","documents","spreadsheets","contracts","transcripts","records","evidence","reconcile","discovery","case file","case files","read through all","go through all","lease","contract","agreement","deposition","filing","exhibits"],weak:["files","reports","emails","attachments","pages","clause","clauses"],
   goal:j=>["Every provided document read, its relevant contents extracted with a traceable location, contradictions reconciled, and a concise report that someone can verify against the originals."],
   sections:j=>[
    ["Inventory",
@@ -1139,6 +1161,7 @@ const playbooks=[
   done:j=>"A concise, traceable report on the issue, plus an inventory, contradictions table and gap list that show the whole document set was covered."},
 
  {id:"decision_analysis",label:"Decision analysis",kind:"analysis",
+  excl:["memo","decision","recommendation","recommendations","strategy","forecast","business case","options analysis"],
   strong:["decision","decide","should we","should i","board","executive","memo","hypothesis","hypotheses","strategy","strategic","business case","trade-off","tradeoff","trade-offs","options analysis","incomplete data","scenario","scenarios","forecast","recommend whether","go/no-go"],weak:["financial","recommendation","options","risk","budget","plan"],
   goal:j=>["A clear recommendation with stated confidence, the reasoning that supports it, the assumptions it rests on, and what would change the answer."],
   sections:j=>[
@@ -1160,6 +1183,7 @@ const playbooks=[
   done:j=>"A decision memo a busy reader can act on from the first page, with the reasoning, assumptions and sensitivity behind it in an appendix."},
 
  {id:"data_analysis",label:"Data analysis",kind:"analysis",
+  excl:["data analysis","statistics","statistical","charts","chart","graphs","regression","dataset","the numbers"],
   strong:["dataset","data set","analyze the data","analyse the data","data analysis","statistics","statistical","trend","trends","correlation","regression","kpi","kpis","excel","spreadsheet analysis","sql query","pivot"],weak:["data","metrics","chart","charts","numbers","analysis","spreadsheet","csv"],
   sections:j=>[
    ["Data Audit",
@@ -1174,6 +1198,7 @@ const playbooks=[
   deliver:j=>["the findings with charts and the numbers behind them","the cleaning log and method notes"]},
 
  {id:"agent_orchestration",label:"Agent orchestration",kind:"agents",
+  excl:["agent","agents","multi-agent","subagent","subagents","orchestration","orchestrate","routing"],
   strong:["orchestrate","orchestration","orchestrator","multi-agent","multi agent","subagent","subagents","sub-agent","agents","route findings","routing","judge","scout","escalate","escalation","agent workflow","agentic workflow","agent pipeline"],weak:["agent","workflow","tools","route","reliable","at scale"],
   goal:j=>["A reliable, observable multi-step system where each stage has a clear contract and failures are contained, not a single clever prompt."],
   sections:j=>[
@@ -1195,6 +1220,7 @@ const playbooks=[
   done:j=>"A running workflow with defined contracts, routing rules, evaluation and tracing, demonstrated on representative tasks with cost and quality reported."},
 
  {id:"writing_content",label:"Writing",kind:"writing",
+  excl:["writing","prose","draft","copy","narrative","blog","essay","newsletter","article"],
   strong:["write a","write an","write the","draft","blog post","blog","article","essay","newsletter","copy for","landing page copy","press release","speech","script","cover letter","bio","story","poem","email to","letter to","announcement","tagline"],weak:["write","tone","voice","audience","words"],when:j=>!j.kinds.code,
   goal:j=>["A finished piece a reader would actually want to read: specific, true, in the right voice, at the right length."],
   sections:j=>[
@@ -1208,6 +1234,7 @@ const playbooks=[
   done:j=>"A publishable draft in the requested voice and length, with claims checked and alternatives for the title or opening."},
 
  {id:"planning_roadmap",label:"Planning",kind:"analysis",
+  excl:["roadmap","plan","planning","timeline","milestones","schedule"],
   strong:["roadmap","project plan","timeline","milestones","launch plan","rollout plan","rollout","implementation plan","phases of","work plan","action plan","plan for"],weak:["plan","schedule","phases","steps","priorities"],when:j=>!j.kinds.code,
   sections:j=>[["Plan Structure",
    "Start with the goal, the constraints (time, people, money, dependencies) and the definition of done.",
@@ -1217,6 +1244,7 @@ const playbooks=[
   deliver:j=>["the phased plan with milestones and owners","the risk register and decision points"]},
 
  {id:"learning_explain",label:"Explanation or teaching",kind:"writing",
+  excl:["explanation","explain","tutorial","teaching","lesson","walkthrough"],
   strong:["explain","teach me","help me understand","tutorial","walk me through","walkthrough","lesson","how does","what is the difference","learn about","study guide","eli5"],weak:["understand","learn","beginner","concept","example"],when:j=>!j.kinds.code,
   sections:j=>[["Teaching Approach",
    "Start with the core idea in two or three plain sentences, then an analogy that maps onto the real mechanism, then a worked example.",
@@ -1261,7 +1289,9 @@ function detectKinds(j){
     they survive a future change to HIT or STAKE instead of silently drifting the way the long-context gate did. */
  k.code=n.code>=2*HIT||h("app","application","web app","webapp","website","repo","repository","codebase","source code","script","plugin","extension","login","sign in","dashboard","endpoint","endpoints","database","deploy","deployment","frontend","front-end","backend","back-end","api","bug","debug","refactor","stripe","ui","component","components","html","css","javascript","typescript","python","react","nextjs","next.js","node","sql","server","cli","library","package","github","pull request","commit");
  k.research=n.research>=HIT||h("research","competitor","competitors","market","landscape","find out","look up","what tools","who else");
- k.documents=h("pdf","pdfs","documents","document set","spreadsheets","contracts","transcripts","records","case file");
+ /* Document review is a kind the README advertises, so the nouns people actually name a document set with belong here: a lease, a
+    contract or a set of filings is a document set even when the word "document" never appears. */
+ k.documents=h("pdf","pdfs","documents","document set","spreadsheets","contracts","transcripts","records","case file","lease","contract","agreement","deposition","filing","statements","exhibits");
  k.analysis=j.stakes>=STAKE||h("decision","decide","memo","hypothes","strategy","trade-off","tradeoff","should we","should i","analyze","analyse","analysis","forecast");
  k.agents=h("orchestrat","multi-agent","multi agent","subagent","agents","route","judge","escalate");
  k.writing=h("write","draft","blog","article","essay","newsletter","copy","speech","poem","story","letter","explain","teach","tutorial");
@@ -1275,14 +1305,34 @@ function primaryKind(j){
  if(j.fired("decision_analysis")&&!j.fired("market_research")) return "analysis";
  if(j.fired("market_research")) return "research";
  if(j.fired("document_review")) return "documents";
+ /* A fired writing playbook beats a bare research score. "Write a warm 800-word newsletter" reads as research to the chooser's
+    need axes, and a research framing hands the writer a role with live web access it was never asked to use. */
+ if(j.fired("writing_content")||j.fired("learning_explain")) return "writing";
  return k.research?"research":k.analysis?"analysis":k.documents?"documents":k.writing?"writing":"general";
 }
+/* Everyday single words that appear in a `strong` list but carry no intent on their own: "the flaky login test" is not a request
+   for a login gate, "the rest of the file" is not an API, "do not touch the schema" is not a database job. A strong keyword of two
+   or more words ("magic link", "made public", "who is using") is deliberate enough to fire a playbook alone, and so is a
+   distinctive single word ("supabase", "stripe", "oauth"). One of these is worth a single hit instead, so it needs a second
+   keyword from the same playbook — strong or weak — before the playbook and everything it implies fires. */
+const GENERIC_TRIGGERS=new Set(["login","logon","gate","gated","usage","tracking","visits","instrument","admin","db","schema","table","tables","persist","rest","page","pages","form","design","screen","theme","fails","failing","public","publicly","pipeline","slow","faster","secure","import","records","evidence","discovery","board","decide","pivot","route","routing","judge","scout","script","bio"]);
+const firesAlone=w=>/[ \-]/.test(w)||!GENERIC_TRIGGERS.has(w);
 function playbookFires(p,j){
  if(p.when&&!p.when(j)) return false;
  if(p.kind==="code"&&!j.kinds.code) return false;
  if(!p.strong.length&&!p.weak.length) return true; /* gated only by `when` and kind */
- if(p.strong.some(w=>j.has(w))) return true;
- return p.weak.filter(w=>j.has(w)).length>=2;
+ if(p.strong.some(w=>firesAlone(w)&&j.has(w))) return true;
+ return p.strong.filter(w=>j.has(w)).length+p.weak.filter(w=>j.has(w)).length>=2;
+}
+/* What the requester ruled out decides what the brief may not contain. Every playbook declares the subjects that rule it out in
+   `excl`; if an exclusion clause names one, the playbook is suppressed — before it fires and again during the `implies` expansion,
+   so "do not touch the database schema" cannot be undone by the login gate quietly implying a database. */
+function suppressedPlaybooks(j){
+ const out=new Set();
+ if(!j.exclusions.length) return out;
+ const ex=j.exclusions.join(" ; ").toLowerCase();
+ playbooks.forEach(p=>{ if((p.excl||[]).some(w=>matchWord(ex,w))) out.add(p.id) });
+ return out;
 }
 function analyzeJob(text){
  const lower=text.toLowerCase(), n=needs(lower);
@@ -1294,9 +1344,11 @@ function analyzeJob(text){
  const repoish=j.has("repo","repository","codebase","github"), appish=j.has("app","application","web app","webapp","website","site","service","tool","dashboard");
  j.appNoun=repoish&&appish?"application and its repository":repoish?"repository":appish?"application":"codebase";
  j.kinds=detectKinds(j);
- const fired=new Set(playbooks.filter(p=>playbookFires(p,j)).map(p=>p.id));
+ const blocked=suppressedPlaybooks(j);
+ j.suppressed=[...blocked];
+ const fired=new Set(playbooks.filter(p=>!blocked.has(p.id)&&playbookFires(p,j)).map(p=>p.id));
  j.fired=id=>fired.has(id);
- let grew=true; while(grew){ grew=false; playbooks.forEach(p=>{ if(fired.has(p.id)&&p.implies) p.implies.forEach(id=>{ if(!fired.has(id)){fired.add(id);grew=true} }) }); }
+ let grew=true; while(grew){ grew=false; playbooks.forEach(p=>{ if(fired.has(p.id)&&p.implies) p.implies.forEach(id=>{ if(!fired.has(id)&&!blocked.has(id)){fired.add(id);grew=true} }) }); }
  j.playbooks=playbooks.filter(p=>fired.has(p.id));
  j.kinds.primary=primaryKind(j);
  return j;

@@ -184,14 +184,83 @@ test("the Step 2 strip reports what was read from the description", () => {
   assert.match(p.el("found").innerHTML, /No specialist playbook matched/);
 });
 
-test("playbook table is well-formed: unique ids, labels, and every implied id exists", () => {
+test("playbook table is well-formed: unique ids, labels, declared exclusions, and every implied id exists", () => {
   const p = load();
   const ids = p.playbooks.map(x => x.id);
   assert.equal(new Set(ids).size, ids.length, "duplicate playbook id");
   for (const pb of p.playbooks) {
     assert.ok(pb.label && pb.kind, pb.id);
     assert.ok(Array.isArray(pb.strong) && Array.isArray(pb.weak), pb.id);
+    // Every playbook says which subjects rule it out, so an exclusion can suppress it. code_core is the kind of job itself.
+    assert.ok(Array.isArray(pb.excl), pb.id + " declares no excl list");
+    if (pb.id !== "code_core") assert.ok(pb.excl.length, pb.id + " declares an empty excl list");
+    for (const w of pb.excl) assert.equal(w, w.toLowerCase().trim(), pb.id + " excl word not normalized: " + w);
     for (const dep of pb.implies || []) assert.ok(ids.includes(dep), pb.id + " implies unknown " + dep);
   }
   assert.equal(ids[0], "code_core", "code_core leads so its assessment phase comes first");
+});
+
+// The three misclassifications found in the September 2026 review of the prompt builder.
+const FLAKY_JOB = "Fix the flaky login test in our repo and add retry logic to the API client, but do not touch the database schema.";
+
+test("an exclusion suppresses the playbooks whose subject it names, and the implies expansion cannot bring them back", () => {
+  const p = load();
+  const out = brief(p, FLAKY_JOB);
+  const j = p.analyzeJob(FLAKY_JOB);
+
+  assert.equal(j.kinds.primary, "code", "fixing a test in a repo is still a coding job");
+  assert.deepEqual(j.exclusions, ["Do not touch the database schema"]);
+  assert.deepEqual(p.jobHints(j), ["API and server", "Bug diagnosis"], "the bare word 'login' no longer fires the gate chain");
+  assert.ok(j.suppressed.includes("database"), "the database playbook is suppressed by the exclusion");
+
+  assert.match(out, /Explicitly ruled out[\s\S]*- Do not touch the database schema/);
+  for (const h of ["Database Rules", "Identity Gate: User Experience", "Authentication Rules", "Data Model: Users"])
+    assert.ok(!headings(out).includes(h), "excluded or incidental section leaked in: " + h);
+  assert.doesNotMatch(out, /migration/i, "nothing asks for migrations");
+  assert.doesNotMatch(out, /schema change/i);
+  assert.ok(headings(out).includes("Diagnosis Discipline"), "the flaky-test playbook still fires");
+
+  // Suppression also wins over an implication: the gate fires here, but the database it implies is ruled out.
+  const gated = "Add a passwordless email sign-in gate to the web app, but do not add a database or any migrations.";
+  const gj = p.analyzeJob(gated);
+  assert.ok(gj.fired("access_gate"), "the gate itself still fires");
+  assert.ok(!gj.fired("database"), "access_gate implies database, but the exclusion outranks the implication");
+  assert.ok(!headings(brief(p, gated)).includes("Database Rules"));
+});
+
+test("a newsletter is writing, not research, and its role claims no web access", () => {
+  const p = load();
+  const job = "Write a warm 800-word newsletter about our bakery opening.";
+  const j = p.analyzeJob(job);
+  assert.equal(j.kinds.primary, "writing");
+  assert.ok(j.kinds.writing);
+  const out = brief(p, job);
+  assert.match(out, /# Role\nYou are a senior engineer\. Work carefully\./);
+  assert.doesNotMatch(out, /live web access/);
+  assert.match(out, /# Voice and Structure/);
+  assert.match(out, /Format: The finished piece, ready to publish/);
+});
+
+test("a long document to review fires the document-review kind", () => {
+  const p = load();
+  const job = "Review a 90-page commercial lease and flag anything unusual.";
+  const j = p.analyzeJob(job);
+  assert.equal(j.kinds.primary, "documents");
+  assert.ok(j.kinds.documents, "a lease is a document set even without the word 'document'");
+  assert.deepEqual(p.jobHints(j), ["Document set review"]);
+  const out = brief(p, job);
+  assert.match(out, /# Role\nYou are a senior engineer working from the documents provided\./);
+  assert.match(out, /# Inventory[\s\S]*# Extraction[\s\S]*# Reconciliation[\s\S]*# Reporting/);
+  assert.ok(out.length > 3500, "a real document-review brief, got " + out.length + " chars");
+});
+
+test("one incidental common word does not fire a domain chain, but a deliberate phrase still does", () => {
+  const p = load();
+  const fired = t => new Set(p.analyzeJob(t).playbooks.map(x => x.id));
+  assert.ok(!fired("Fix the login test").has("access_gate"), "'login' alone is incidental");
+  assert.ok(fired("Add a login page where users enter an email address to the app").has("access_gate"), "two cues fire it");
+  assert.ok(fired("Add passwordless sign-in to the app").has("access_gate"), "a deliberate phrase fires alone");
+  assert.ok(!fired("Read the rest of the file and fix the typo in the app").has("api_backend"), "'the rest' is not an API");
+  assert.ok(fired("Add a webhook endpoint to the app").has("api_backend"));
+  assert.ok(!fired("Import the helper module into the app and rename it").has("data_pipeline"), "'import' alone is incidental");
 });
