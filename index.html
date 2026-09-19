@@ -3,6 +3,9 @@
 <head>
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1"/>
+<!-- Second layer behind esc(): even if an escaping slip let markup through, no external script, style, image or connection can
+     load, and the only network destination the page may open is the Claude API used by Recheck Option A. -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; connect-src https://api.anthropic.com https://*.vercel.app; img-src data:; base-uri 'none'; form-action 'none'"/>
 <title>AI Model Practical Map — September 2026</title>
 <style>
 :root{
@@ -76,6 +79,7 @@ button:hover{filter:brightness(1.08)}
 .pb{padding:22px;margin-top:18px;display:none}
 .pbhead h3{margin:6px 0 4px;font-size:23px;letter-spacing:-.03em}
 .pbhead p{margin:0;color:var(--muted);font-size:13px;line-height:1.5;max-width:680px}
+.found{margin-top:14px;font-size:12px;color:var(--muted);line-height:1.6}.found b{color:white}.found .signals{display:inline-flex;margin:0 0 0 6px;vertical-align:middle}
 .targets{display:flex;gap:8px;flex-wrap:wrap;margin-top:16px}
 .target{display:flex;flex-direction:column;align-items:flex-start;gap:3px;text-align:left;background:#0b1a2b;border:1px solid var(--line);padding:10px 13px;border-radius:12px;color:#c3d2e3;font-weight:650}
 .target small{font-size:10px;text-transform:uppercase;letter-spacing:.1em;color:var(--muted);font-weight:800}
@@ -209,6 +213,7 @@ body.gated .wrap{filter:blur(4px);pointer-events:none;user-select:none}
 <div class="nav"><div class="navin">
 <a href="#chooser">Task chooser</a><a href="#mental">Mental model</a><a href="#map">Practical map</a><a href="#price">Cost</a><a href="#stack">Multi-model stack</a><a href="#sources">Sources</a>
 </div></div>
+<div class="note" id="storageNote" style="display:none" role="status"></div>
 
 <div class="card rc" id="rc">
   <div class="rchead">
@@ -269,8 +274,9 @@ body.gated .wrap{filter:blur(4px);pointer-events:none;user-select:none}
   <div class="pbhead">
     <div class="rank">Step 2 · Build the prompt</div>
     <h3>Turn the job into a prompt for the recommended model</h3>
-    <p>Answer a few short questions, or skip any you like. The builder combines your answers with the task description and writes a structured prompt tuned to the model you pick below.</p>
+    <p>The builder reads your Step 1 description, works out what kind of job it is, and writes a full brief around it: role, goal, requirements, domain rules, phased plan, tests and final deliverable. The short questions below layer detail on top; skip any you like. The result is tuned to the model you pick.</p>
   </div>
+  <div class="found" id="found"></div>
   <div class="subsintro">
     <div><div class="rank">Subscriptions you already pay for</div><p>ChatGPT and Claude are always available here. For each one the map picks the tier that fits this job, names the fallback when the top tier is out of reach or out of quota, and says whether a higher plan would actually pay off for work like this. Set your plan once; it is remembered in this browser.</p></div>
   </div>
@@ -427,7 +433,7 @@ function exampleCost(m){
 }
 function renderPricing(){
  document.getElementById("pricingRows").innerHTML=models.map(m=>`
-<tr><td><b>${esc(m.name)}</b></td><td>${esc(m.vendor)}</td><td>${m.input==null?"—":"$"+m.input.toFixed(m.input<1?2:2)}</td><td>${m.output==null?"—":"$"+m.output.toFixed(m.output<1?2:2)}</td><td>${exampleCost(m)}</td><td>${["","Very low","Low","Moderate","Premium","Frontier premium"][m.costTier]}</td></tr>`).join("");
+<tr><td><b>${esc(m.name)}</b></td><td>${esc(m.vendor)}</td><td>${m.input==null?"—":"$"+m.input.toFixed(2)}</td><td>${m.output==null?"—":"$"+m.output.toFixed(2)}</td><td>${exampleCost(m)}</td><td>${["","Very low","Low","Moderate","Premium","Frontier premium"][m.costTier]}</td></tr>`).join("");
 }
 
 const patterns = {
@@ -441,11 +447,13 @@ const patterns = {
  discipline:["spec","defined","routine","follow","exact","requirements","implementation","keep cost low","straightforward"]
 };
 /* Match a keyword only where it starts a word; keywords of three characters or fewer must also end one (a plural "s" is allowed).
-   Plain substring matching fired "api" on "rapidly", "test" on "latest" and "web" on "webhook". Keywords are plain text, no regex syntax. */
+   Plain substring matching fired "api" on "rapidly", "test" on "latest" and "web" on "webhook". Keywords are escaped before they
+   become a pattern, so a future "c++" or "node.js" keyword matches literally instead of as regex syntax. */
 const wordRe=new Map();
+const reEscape=s=>s.replace(/[.*+?^${}()|[\]\\]/g,"\\$&");
 function hasWord(text,k){
  let re=wordRe.get(k);
- if(!re){ re=new RegExp("(?:^|[^a-z0-9])"+k+(k.length<=3?"s?(?![a-z0-9])":"")); wordRe.set(k,re); }
+ if(!re){ re=new RegExp("(?:^|[^a-z0-9])"+reEscape(k)+(k.length<=3?"s?(?![a-z0-9])":"")); wordRe.set(k,re); }
  return re.test(text);
 }
 function signal(text,arr){let n=0;arr.forEach(k=>{if(hasWord(text,k)) n++});return Math.min(10,n*2.2)}
@@ -560,8 +568,19 @@ function complexity(n,text){
 function heavyLoad(n,text){ return n.agent>=4||n.long>=4||text.length>550; }
 function cxBand(c){ return c>=6?"high":c>=3?"mid":"low"; }
 function cxLabel(c){ return c>=6?"Hard, ambiguous or high-stakes":c>=3?"Real reasoning, bounded scope":"Routine or well-defined"; }
-function loadPlans(){ const d={chatgpt:"plus",claude:"pro"}; try{ return Object.assign(d,JSON.parse(localStorage.getItem("pm_plans")||"{}")) }catch(e){ return d } }
-function savePlans(){ try{ localStorage.setItem("pm_plans",JSON.stringify(pb.plans)) }catch(e){} }
+/* Browser storage can be blocked (private mode, site-data settings, a full quota) or hold something unreadable. Every read or write
+   used to swallow that in an empty catch, so applied changes vanished on reload with nothing said anywhere. Now each failure is
+   logged once per cause and the user sees one line explaining what will not be remembered. */
+const storageSeen=new Set();
+function storageWarn(what,e){
+ const key=what+":"+(e&&e.name||"");
+ if(!storageSeen.has(key)){ storageSeen.add(key); console.warn("[storage] "+what,e); }
+ const el=$("storageNote");
+ el.textContent="This browser is not letting the page save "+what+". Everything still works for this visit, but applied Recheck changes, your plan choices and the remembered key will not survive a reload. Allow site data for this page to fix it.";
+ el.style.display="block";
+}
+function loadPlans(){ const d={chatgpt:"plus",claude:"pro"}; try{ return Object.assign(d,JSON.parse(localStorage.getItem("pm_plans")||"{}")) }catch(e){ storageWarn("your plan choices",e); return d } }
+function savePlans(){ try{ localStorage.setItem("pm_plans",JSON.stringify(pb.plans)) }catch(e){ storageWarn("your plan choices",e) } }
 
 function planSubs(r,text){
  const c=complexity(r.n,text), band=cxBand(c), heavy=heavyLoad(r.n,text);
@@ -643,15 +662,17 @@ function renderSubs(){
    if($("output").style.display!=="none") renderOutput(); else renderWizard();
  });
 }
+/* → {m, label, sub}. `sub` is the subscription key ("chatgpt" | "claude") when the target is one of the user's plans, else null;
+   renderOutput reads it directly instead of sniffing the display label for a vendor name. */
 function resolveTarget(){
  const t=pb.target;
- if(targetLabels[t]) return {m:pb.rec[t],label:targetLabels[t]};
- if(subs[t]) return {m:pb.subs.items[t].pick,label:"Your "+subs[t].name};
+ if(targetLabels[t]) return {m:pb.rec[t],label:targetLabels[t],sub:null};
+ if(subs[t]) return {m:pb.subs.items[t].pick,label:"Your "+subs[t].name,sub:t};
  if(t.startsWith("m:")){
    const [,s,id]=t.split(":"); const it=pb.subs.items[s]; const m=it.tiers.find(x=>x.id===id);
-   return {m,label:"Your "+subs[s].name+(id===it.pick.id?"":id===it.fallback.id?" · fallback":" · alternate tier")};
+   return {m,label:"Your "+subs[s].name+(id===it.pick.id?"":id===it.fallback.id?" · fallback":" · alternate tier"),sub:s};
  }
- return {m:pb.rec.balanced,label:targetLabels.balanced};
+ return {m:pb.rec.balanced,label:targetLabels.balanced,sub:null};
 }
 
 const modelGuidance={
@@ -692,7 +713,15 @@ function initPromptBuilder(r){
  pb.subs=planSubs(r,$("task").value.trim().toLowerCase());
  $("output").style.display="none";
  $("prompt").style.display="block";
- renderSubs(); renderTargets(); renderWizard();
+ renderFound(); renderSubs(); renderTargets(); renderWizard();
+}
+/* Tell the user what the engine recognized in Step 1, so a missing chip is a cue to say more in the description. */
+function renderFound(){
+ const j=analyzeJob($("task").value.trim()), hints=jobHints(j);
+ const kindLabel={code:"a software change",research:"a research job",documents:"a document review",analysis:"an analysis and decision",agents:"an agent workflow",writing:"a writing job",general:"a general task"}[j.kinds.primary];
+ const counts=j.long||j.structured?", described in enough detail that the brief quotes it as the requirements":(j.requirements.length?` with ${j.requirements.length} requirement${j.requirements.length===1?"":"s"}`:"")+(j.exclusions.length?` and ${j.exclusions.length} explicit exclusion${j.exclusions.length===1?"":"s"}`:"");
+ $("found").innerHTML=`<b>Read from your description:</b> ${kindLabel}${counts}.`
+  +(hints.length?` The brief will include rules for:<span class="signals">${hints.map(h=>`<span class="signal">${esc(h)}</span>`).join("")}</span>`:" No specialist playbook matched, so the brief uses the general structure. Mention the domain (a repo, a market, a document set, a decision) for a sharper brief.");
 }
 function renderTargets(){
  const subOn=k=>pb.target===k||pb.target.startsWith(`m:${k}:`);
@@ -734,50 +763,643 @@ function renderWizard(){
  $("wizSkipAll").onclick=()=>{save(); pb.step=activeQuestions().length; renderWizard()};
  if($("wizBack")) $("wizBack").onclick=()=>{save(); pb.step--; renderWizard()};
 }
+/* ---------- Prompt engine: read the Step 1 description, decide what kind of work it is, write the brief ----------
+   The guts of the prompt come from the job description. `analyzeJob()` splits it into requirements and exclusions, detects the
+   kind of work, and fires the playbooks whose subject it mentions. A playbook is a block of domain knowledge (an email access
+   gate, usage analytics, a market scan, a decision memo...) that contributes goal bullets, requirement sections, implementation
+   phases, tests, constraints and final-deliverable items. `buildPrompt()` assembles those into one brief and layers the wizard
+   answers on top. `strong` words fire a playbook alone; `weak` words need two hits. All matching is word-boundary via hasWord(). */
+
+const NEG_RE=/\b(?:no|not|never|without|don't|dont|do not|avoid|shouldn't|should not|can't|cannot|excluding|instead of)\b/i;
+/* Lead-ins that talk about the prompt rather than the job: "I want a prompt to...", "write me a prompt that...", "please...". */
+const META_RE=/^(?:(?:i|we)\s+(?:want|need|would like|'d like)|i'd like|please|can you|could you|help me)\s+(?:a\s+|an\s+|the\s+)?(?:(?:good|robust|detailed|strong)\s+)?(?:prompt\s+(?:to|that|for|which|so)\s+(?:will\s+|would\s+|can\s+)?|to\s+)?|^(?:write|create|make|build|generate|give)\s+(?:me\s+)?(?:a\s+|an\s+|the\s+)?(?:(?:good|robust|detailed|strong)\s+)?prompt\s+(?:to|that|for|which|so)\s+(?:will\s+|would\s+|can\s+)?/i;
+const cap1=s=>s.charAt(0).toUpperCase()+s.slice(1);
+function tidyClause(s){
+ s=s.trim().replace(/^[,;:\-–—\s]+|[,;:\s]+$/g,"").replace(/^(?:and|then|also)\s+/i,"");
+ const stripped=s.replace(META_RE,"").trim();
+ s=(stripped!==s?stripped.replace(/^(?:have|has)\s+/i,""):stripped).replace(/\bi\b/g,"I");
+ return s?cap1(s):"";
+}
+/* Analyzer matching: words of four letters or fewer must be whole words (so "repo" is not "report" and "form" is not "format");
+   longer keywords match word-initially as hasWord() does, so "track" covers "tracking" and "debug" covers "debugging". */
+const exactRe=new Map();
+function matchWord(lower,k){
+ if(k.length>4) return hasWord(lower,k);
+ let re=exactRe.get(k);
+ if(!re){ re=new RegExp("(?:^|[^a-z0-9])"+k.replace(/[.*+?^${}()|[\]\\]/g,"\\$&")+"(?:s|es)?(?![a-z0-9])"); exactRe.set(k,re); }
+ return re.test(lower);
+}
+/* Verbs that start a new instruction after a comma: "find the bug, fix it, run the tests" becomes three requirements. */
+const CLAUSE_VERBS="find|fix|add|build|create|make|write|run|test|verify|check|challenge|implement|inspect|compare|synthesize|synthesise|produce|generate|research|route|judge|call|keep|follow|track|show|report|deploy|migrate|refactor|document|design|analyze|analyse|review|summarize|summarise|reconcile|process|identify|list|rank|explain|include|ensure|let|allow|require|store|send|display|measure|remove|update|convert|export|import|validate|prevent|protect|read|search|collect|gather|draft|recommend|decide|route";
+const CLAUSE_SPLIT=new RegExp("[.;!?\\n]+|,\\s*(?:and\\s+)?then\\b|\\s+and\\s+then\\b|,\\s+(?=(?:and\\s+)?(?:"+CLAUSE_VERBS+")\\b)|\\s+(?=so\\s+(?:that\\s+)?(?:I|we|you)\\b)","i");
+const NEG_SKIP_RE=/^(?:do not|don't|dont|not)\s+(?:know|sure|yet|only|necessarily|just|familiar|aware)\b|^no\s+(?:matter|doubt|idea|longer|more than)\b|^without\s+(?:knowing|being)\b/i;
+function splitClauses(text){
+ return text.replace(/\r/g,"").split(CLAUSE_SPLIT).map(s=>s.trim()).filter(s=>s.split(/\s+/).length>=3);
+}
+/* Every clause of the description becomes a numbered requirement. Bullet or numbered lines in the description are used as-is. */
+function extractRequirements(text){
+ const lines=text.split(/\r?\n/).map(l=>l.trim()).filter(Boolean);
+ const bullets=lines.filter(l=>/^(?:[-*•]|\d+[.)])\s+/.test(l)).map(l=>l.replace(/^(?:[-*•]|\d+[.)])\s+/,""));
+ const src=bullets.length>=2?bullets:splitClauses(text);
+ const out=[]; src.forEach(c=>{const t=tidyClause(c); if(t&&t.split(/\s+/).length>=2&&!out.includes(t)) out.push(t)});
+ return out;
+}
+/* Anything the requester ruled out, in their own words, so the model does not helpfully add it back. */
+function extractExclusions(text){
+ const out=[];
+ splitClauses(text).forEach(c=>{
+   const re=new RegExp(NEG_RE.source,"gi"); let m;
+   while((m=re.exec(c))){
+     const rest=c.slice(m.index); if(NEG_SKIP_RE.test(rest)) continue;
+     const phrase=rest.split(/,|\s+and\s+|\s+but\s+/)[0].split(/\s+/).slice(0,10).join(" ").replace(/[,;:\s]+$/,"");
+     if(phrase.split(/\s+/).length>=2&&!out.includes(cap1(phrase))) out.push(cap1(phrase));
+   }
+ });
+ return out;
+}
+
+const playbooks=[
+ /* ---- software work ---- */
+ {id:"code_core",label:"Codebase work",kind:"code",strong:[],weak:[],when:j=>j.kinds.code,
+  goal:j=>[`Deliver working software in the ${j.appNoun}, integrated with the existing stack, not a description of what could be built.`],
+  sections:j=>[["Repository Assessment",
+   "Before writing code, inspect the repository and record, in your first message back:",
+   "- framework and language versions, package manager, build and test commands",
+   "- hosting and deployment assumptions (static host, serverless, container, platform-as-a-service)",
+   "- database or storage in use, and how the code talks to it",
+   "- existing authentication, authorization, analytics and logging, if any",
+   "- routing architecture and where pages, components or handlers live",
+   "- backend or API architecture and conventions for validation and errors",
+   "- test suite, linting and CI, and how to run them locally",
+   "- the best place to integrate this work and anything that would make it harder than it looks",
+   "Then proceed with implementation. Reuse what exists whenever practical."]],
+  phases:j=>[{t:"Repository assessment",items:["Inspect the repository and report the points listed under Repository Assessment.","Run the existing tests once to establish a baseline before changing anything.","Confirm the integration plan in a short paragraph, then continue without waiting."]}],
+  tests:j=>["Existing application functionality still works: the previous test suite passes and the main flows behave as before.","Lint, type checks and the build succeed with no new warnings."],
+  deliver:j=>["files added","files modified","commands to run locally and in CI","any manual deployment or configuration steps I need to complete","recommended next improvements"],
+  done:j=>`The change is implemented in the ${j.appNoun}, covered by tests, documented, and summarized so I can review and deploy it without further investigation.`},
+
+ {id:"access_gate",label:"Email or login gate",kind:"code",
+  strong:["login","log in","logon","log on","sign in","sign-in","signin","sign up","signup","authentication","authenticate","password","passwordless","magic link","sso","oauth","access gate","gated","gate","paywall","who accessed","who accesses","who is using","by who","by whom","identify visitors","identify users"],
+  weak:["email","visitors","access","users","identity"],implies:["database"],
+  goal:j=>[j.passwordless
+   ?"A lightweight identity gate: visitors enter an email address and click Continue. No password, no account creation, no username, no complicated login screen."
+   :"A sign-in flow that fits the application's existing stack. Reuse an existing auth provider or session mechanism if one is present rather than adding a second one.",
+   "After entering, the visitor is let in and stays recognized on future visits through a persistent browser session."],
+  sections:j=>{
+   const S=[];
+   S.push(["Identity Gate: User Experience",
+    "First visit. When someone reaches a protected part of the application without an active identity session, show a clean gate:",
+    "  Welcome. Enter your email to continue.",
+    "  [ Email address ]  [ Continue ]",
+    "  Small text underneath: 'Your email is used to identify your session and understand how this application is being used.'",
+    "Validate that the value is a properly formatted email address before accepting it.",
+    "After Continue: 1) normalize the email (trim, lowercase), 2) create or find the user, 3) start a new session, 4) store a secure persistent session identifier (httpOnly cookie or the platform equivalent), 5) redirect into the application.",
+    "Do not expose database IDs in the URL.",
+    "Returning visitor. If the browser holds a valid persistent session, bypass the gate automatically. Do not ask for the email on every visit. Target persistence of about 30 days unless the existing architecture suggests another reasonable value.",
+    "Provide a small, unobtrusive 'Switch user' or 'Sign out' control. Signing out ends the current session and returns to the gate."]);
+   if(j.passwordless) S.push(["Security Distinction",
+    "An email field without verification is not real authentication: anyone can type someone else's address. Build this version as a lightweight identity gate for usage tracking, and say so in the code comments and README.",
+    "Architect it so email verification or magic-link sign-in can be switched on later without rebuilding users, sessions or analytics: keep an `email_verified` flag (default false), keep session creation in one function, and keep the gate page as the single entry point.",
+    "Do not introduce a large authentication platform unless there is a compelling architectural reason. If the project already uses a hosted backend such as Supabase or Firebase, prefer its primitives.",
+    "Document exactly what would need to change to enable verified magic-link authentication later."]);
+   else S.push(["Authentication Rules",
+    "Passwords, if any, are hashed with the platform's standard (bcrypt, argon2 or the provider's built-in); never logged, never stored in plain text.",
+    "Sessions are server-validated. Do not trust a user id sent from the browser.",
+    "Rate-limit sign-in attempts and return the same error for unknown user and wrong credential.",
+    "Provide sign-out that invalidates the session server-side."]);
+   S.push(["Data Model: Users",
+    "Create a `users` record conceptually like: id, email, normalized_email (unique), first_seen_at, last_seen_at, total_sessions, created_at, updated_at"+(j.passwordless?", email_verified (default false).":"."),
+    "Uniqueness is on the normalized email, so one person never becomes two users."]);
+   return S;},
+  phases:j=>[{t:"Identity gate",items:["Gate page and email validation","User create-or-find on the normalized email","Persistent session and route protection for every protected page","Sign out / switch user"]}],
+  tests:j=>["A new visitor sees the email gate on every protected route.","An invalid email is rejected with a clear message; a valid one grants access.","Refreshing, and closing then reopening the browser, both preserve identity.","A returning visitor is not asked for their email again.","Signing out clears identity and returns to the gate.","The same email entered twice does not create duplicate users."].concat(j.passwordless?[]:["A wrong password is rejected and does not reveal whether the account exists."]),
+  constraints:j=>["Do not introduce a heavyweight authentication platform when the existing stack can hold a user record and a session cookie."],
+  deliver:j=>["how identity and sessions are stored, and how to upgrade to verified sign-in later"]},
+
+ {id:"usage_analytics",label:"Usage analytics",kind:"code",
+  strong:["analytics","tracking","track usage","usage","telemetry","how often","how long","how many people","how many users","who accessed","who uses","who is using","visits","page views","pageviews","access log","instrument","metrics on","measure usage"],
+  weak:["see","view","monitor","report","track","accessed","users","visitors"],implies:["database","admin_dashboard"],
+  goal:j=>["First-party usage analytics stored in our own database: who used the application, when they first and last came, visit and session counts, active time, and which parts of the application they used."],
+  sections:j=>[
+   ["Data Model: Sessions and Events",
+    "`sessions`: id, user_id, started_at, last_activity_at, ended_at, active_seconds, page_views, referrer, landing_page, user_agent, approximate device/browser if easily available, created_at. No invasive device fingerprinting.",
+    "`usage_events`: id, user_id, session_id, event_name, path, feature, metadata (JSON), created_at.",
+    "Keep totals (total_sessions, total_active_seconds) on the user record or in a view so the admin page does not scan every event.",
+    "Add indexes for the reporting queries: sessions by user and by started_at; events by user, by session, by event_name and by created_at."],
+   ["Session Duration",
+    "Do not calculate session length as last page load minus first page load; a tab left open for hours would count as usage.",
+    "Track active time in the browser from page visibility, mouse, keyboard, click/touch and navigation events. A session is inactive after about 5 minutes with no activity, and only active time counts.",
+    "Do not send a request per mouse movement. Accumulate locally and send a summarized heartbeat every 30 to 60 seconds while active. Use `navigator.sendBeacon()` or an equivalent reliable mechanism on unload and background transitions.",
+    "Keep this cheap enough that analytics does not materially increase hosting or database cost."],
+   ["Events",
+    "Create one reusable tracking utility, for example trackEvent('report_opened') and trackEvent('search_performed', { query_type: 'customer' }).",
+    "Capture automatically: application_opened, session_started, session_ended where practical, page_view and route_changed.",
+    "Then read the application and identify its major meaningful user actions. Instrument the important ones (a report opened, a search run, a filter used, a document generated, an export, a major workflow started or completed) without tracking every minor click. Decide the list from what this application actually does and report it."],
+   ["Privacy",
+    "Do not collect passwords, precise location, invasive browser fingerprints, keystroke contents, form contents (unless an application feature explicitly tracks them) or anything unrelated to usage.",
+    "Do not store raw IP addresses unless technically necessary; if location is derived at all, keep only country or region.",
+    "Do not send email addresses to third-party analytics platforms. Prefer first-party analytics in our own database."]],
+  phases:j=>[{t:"Analytics engine",items:["Session lifecycle and persistence","Active-time tracking with heartbeats and unload beacons","Automatic page and route events","Reusable trackEvent utility and instrumentation of the major application actions"]}],
+  tests:j=>["Page navigation is recorded as events.","Active time increases while the user is active and stops accumulating in inactive or background tabs.","A new session is created when a returning user comes back after inactivity.","Analytics failures (network down, database unavailable) never break the application for the user."],
+  constraints:j=>["Analytics endpoints derive the user from the session; never trust a user id or email sent from the browser. Validate every event server-side and rate-limit the endpoints."],
+  deliver:j=>["events being tracked, with the name and meaning of each","how session duration and active time are calculated"]},
+
+ {id:"admin_dashboard",label:"Admin view",kind:"code",
+  strong:["admin","dashboard","admin view","admin page","back office","backoffice","internal tool","reporting view","overview page"],weak:["see","report","summary","view","overview"],
+  goal:j=>["An admin-only view where I can see the results, protected on the server, not merely hidden in the UI."],
+  sections:(j)=>{
+   const an=j.has("analytics","tracking","usage","telemetry","how often","how long","who accessed","visits")||j.fired("usage_analytics");
+   const S=[["Admin Access",
+    "Create an admin-only route such as `/admin/usage`. It must not be reachable just because a visitor passed the gate or is signed in.",
+    "Identify administrators with an environment variable (for example `ADMIN_EMAILS=one@example.com,two@example.com`) or the application's existing role system. Verify admin authorization on the server for both the page and its data endpoints.",
+    "Do not hardcode administrator identities into public client-side source if that would expose privileged logic."]];
+   if(an) S.push(["Admin Analytics Dashboard",
+    "Summary metrics: unique users; total sessions; sessions today, last 7 days, last 30 days; average active session duration; total active time; new and returning users this week.",
+    "Users table with Email, First seen, Last seen, Sessions, Total active time, Average session, Most used feature. Sort by most recent, most sessions, longest usage and newest. Search by email. Clicking a row opens a user detail view.",
+    "User detail: email, first and most recent visit, total sessions, total and average active time, pages and features used, usage by date, recent sessions, event history.",
+    "Recent activity feed in the form '11:04 AM — person@example.com — Dashboard viewed'.",
+    "Simple charts where they help: daily active users, sessions by day, active minutes by day, new vs returning users, most-used features. Use the application's existing charting if it has any; do not add a large charting library for basic charts.",
+    "Date range filtering across the page. Keep the UI consistent with the existing design language."]);
+   else S.push(["Admin Page Contents","Show the data this job produces in a table with sorting and search, a detail view per record, and a short summary strip at the top. Keep the UI consistent with the existing design language and reuse existing components."]);
+   return S;},
+  phases:j=>[{t:"Admin dashboard",items:["Server-side admin authorization for the route and its data endpoints","Overview metrics, table with sort and search, detail view","Recent activity, charts and date filtering where the data supports them"]}],
+  tests:j=>["An administrator can open the admin route and its data loads.","A normal user, signed in or not, gets a 403 or redirect from the admin route and from its data endpoints.","A user cannot query another user's information through any endpoint."],
+  deliver:j=>["how to designate administrators and reach the admin view"]},
+
+ {id:"database",label:"Database and migrations",kind:"code",
+  strong:["database","db","supabase","postgres","postgresql","mysql","sqlite","mongodb","mongo","firebase","firestore","prisma","drizzle","schema","migration","migrations","table","tables","persist","store the","save the"],weak:["store","save","records","data model"],
+  sections:j=>[["Database Rules",
+   "Use the database the project already has. If it has none, choose the lightest option that fits the hosting platform, say why, and keep the data access behind one module so it can be swapped.",
+   "Create migrations for every schema change; never edit production tables by hand. Name them so they run in order.",
+   "Design indexes for the queries you actually write, and check that list queries stay fast as rows grow.",
+   "If using Supabase or another browser-reachable backend: enable Row Level Security on every table, prevent browser clients from reading other users' rows or aggregate tables, keep privileged reads on the server, and never expose the service-role key to the browser.",
+   "Keep connection strings and keys in environment variables; document each one in `.env.example` with a placeholder."]],
+  tests:j=>["Migrations apply cleanly on an empty database and on the current schema."],
+  deliver:j=>["database migrations created and the resulting schema","environment variables required, with placeholders in `.env.example`"]},
+
+ {id:"api_backend",label:"API and server",kind:"code",
+  strong:["api","apis","endpoint","endpoints","backend","back-end","server","serverless","webhook","webhooks","rest","graphql","edge function","cloud function","lambda","route handler"],weak:["request","response","json","fetch"],
+  sections:j=>[["API and Server Rules",
+   "Validate every input server-side with explicit types and limits; reject unknown fields.",
+   "Authorize on the server for every request; the current user comes from the verified session, never from the request body.",
+   "Return consistent error shapes and status codes; never leak stack traces or internal identifiers.",
+   "Make write endpoints idempotent where a retry is plausible, and rate-limit anything a browser can call in a loop.",
+   "Log enough to debug (request id, route, outcome) without logging secrets or personal data."]],
+  tests:j=>["Unauthenticated or unauthorized requests to protected endpoints are rejected.","Malformed input is rejected with a clear error and does not reach the database."]},
+
+ {id:"frontend_ui",label:"User interface",kind:"code",
+  strong:["ui","user interface","frontend","front-end","front end","page","pages","form","button","component","components","screen","layout","design","css","responsive","modal","navigation","menu","theme","dark mode"],weak:["field","click","display","show"],
+  sections:j=>[["User Interface",
+   "Match the existing design language: reuse the project's components, spacing, colors and typography. Do not introduce a new UI framework or design system for this feature.",
+   "Every new view needs empty, loading and error states, works at phone width without horizontal scroll, and is usable from the keyboard with visible focus and proper labels.",
+   "Keep copy short and plain. Show validation errors next to the field that caused them."]],
+  tests:j=>["New screens render correctly at phone and desktop widths and are operable by keyboard."]},
+
+ {id:"bugfix",label:"Bug diagnosis",kind:"code",
+  strong:["bug","bugs","debug","broken","crash","crashes","intermittent","intermittently","flaky","regression","root cause","double-post","double posts","doesn't work","does not work","not working","failing","fails","incorrect result","wrong result","race condition","memory leak"],weak:["fix","error","issue","problem","sometimes","occasionally"],
+  goal:j=>["Find and fix the root cause, prove it with a test that failed before the fix and passes after, and leave the surrounding behavior unchanged."],
+  sections:j=>[["Diagnosis Discipline",
+   "Reproduce first. Write down the exact steps, inputs and observed versus expected behavior. If it is intermittent, find what makes it more likely (timing, concurrency, ordering, data shape) and make it reproduce on demand.",
+   "Form competing hypotheses and test them with evidence from logs, instrumentation or targeted experiments. Do not stop at the first plausible explanation.",
+   "Distinguish the root cause from the symptom. Ask whether the same defect exists elsewhere in the codebase and check.",
+   "Fix minimally at the cause. Then add a regression test that encodes the failing case.",
+   "Report what was wrong, why it happened, why the fix is correct, and what else it could affect."]],
+  phases:j=>[{t:"Reproduce and diagnose",items:["Reproduce the failure deterministically","Instrument and test hypotheses until the root cause is confirmed"]},{t:"Fix and prove",items:["Minimal fix at the root cause","Regression test that fails before and passes after","Search for sibling occurrences of the same defect"]}],
+  tests:j=>["The regression test fails on the old code and passes on the fix.","The original reproduction steps no longer produce the failure."],
+  deliver:j=>["root cause, in plain language, and the evidence that confirmed it"]},
+
+ {id:"refactor_migration",label:"Refactor or migration",kind:"code",
+  strong:["refactor","refactoring","modernize","modernise","migrate to","migrate from","move from","switch from","convert to","port to","upgrade to","rewrite","restructure","clean up the code","technical debt"],weak:["upgrade","migrate","restructure","simplify"],
+  sections:j=>[["Preserving Behavior",
+   "Before changing structure, capture current behavior with characterization tests where coverage is thin.",
+   "Work in small, reviewable steps that each keep the suite green. Prefer many small commits to one large one.",
+   "Keep public interfaces stable unless the job is to change them; where they change, provide a compatibility path or a clear migration note.",
+   "Measure before and after (build time, bundle size, performance) if the refactor claims to improve any of them."]],
+  tests:j=>["Behavior before and after is identical for the covered paths; any intentional difference is listed."]},
+
+ {id:"public_repo",label:"Public repository",kind:"code",
+  strong:["public","publicly","open source","open-source","open sourced","github pages","made public","open repo","public repo","public repository"],weak:["github","online","anyone"],when:j=>j.kinds.code,
+  sections:j=>[["Public Repository Considerations",
+   "This repository is (or may become) public. Assume every committed byte is visible to the world.",
+   "Never commit secrets, API service-role keys, administrator credentials or private database credentials. Never put private credentials in frontend code.",
+   "Add every required secret to `.env.example` with placeholder values, confirm `.env` and production secrets are gitignored, and list exactly which environment variables I must configure on the hosting platform.",
+   "Client-exposed public keys may be used only where the platform intends them to be public and server-side rules prevent unauthorized access.",
+   "Check the git history you create for accidental secrets before pushing."]],
+  tests:j=>["A search of the diff and new files finds no keys, tokens or credentials."],
+  deliver:j=>["security protections implemented, including how secrets are kept out of the repository"]},
+
+ {id:"payments",label:"Payments",kind:"code",
+  strong:["stripe","payment","payments","checkout","billing","subscription","subscriptions","invoice","invoices","paypal","credit card","pricing plan","paywall"],weak:["charge","purchase","pay"],
+  sections:j=>[["Payments",
+   "Use the provider's hosted checkout or elements; never handle raw card data in our code.",
+   "Verify webhook signatures, make webhook handlers idempotent, and store the provider's ids so events can be reconciled.",
+   "Build and test in the provider's test mode. Keep secret keys server-side; publishable keys only in the client.",
+   "Handle the unhappy paths: failed payment, refund, cancellation, and a webhook arriving before the redirect."]],
+  tests:j=>["A replayed webhook does not create a duplicate record.","A failed payment leaves the account in a correct, explainable state."]},
+
+ {id:"email_delivery",label:"Sending email",kind:"code",
+  strong:["send email","send an email","send emails","email notification","email notifications","transactional email","smtp","resend","sendgrid","postmark","mailgun","newsletter","magic link","verification email","welcome email"],weak:["notify","notification","inbox"],
+  sections:j=>[["Email Delivery",
+   "Send through one provider module configured by environment variables, with a no-send or log-only mode for local development and tests.",
+   "Templates live in code with plain-text fallbacks. Every non-transactional email carries an unsubscribe path.",
+   "Verification or magic-link tokens are single-use, expire quickly, and are stored hashed.",
+   "Note the sender-domain setup (SPF, DKIM, DMARC) I must complete for deliverability."]],
+  tests:j=>["In development, no real email is sent and the rendered message can be inspected.","Expired or reused tokens are rejected."]},
+
+ {id:"file_upload",label:"File uploads",kind:"code",
+  strong:["upload","uploads","uploading","attachment","attachments","file storage","image storage","s3","blob storage","bucket","user files"],weak:["files","images","photos","documents"],
+  sections:j=>[["File Uploads and Storage",
+   "Enforce size and type limits on the server, not only in the browser. Sniff content type; do not trust the extension.",
+   "Store files privately and serve them through short-lived signed URLs or an authorized route; never guessable public paths.",
+   "Strip or ignore executable content; note where virus scanning would plug in.",
+   "Clean up orphaned files when the owning record is deleted."]],
+  tests:j=>["An oversized or disallowed file is rejected server-side.","A user cannot fetch another user's file by guessing its path."]},
+
+ {id:"ai_feature",label:"AI integration",kind:"code",
+  strong:["llm","large language model","chatbot","chat bot","gpt","claude","openai","anthropic","gemini api","embedding","embeddings","rag","vector search","vector database","ai assistant","ai feature","model call","completion api","prompt injection"],weak:["ai","prompt","model","assistant","summarize","generate"],
+  sections:j=>[["AI Integration",
+   "Call the model from the server; API keys never reach the browser. Choose the model and parameters through configuration, not literals scattered in code.",
+   "Treat user-supplied and retrieved content as untrusted data in prompts: label it, never let it override instructions, and never execute what it asks for.",
+   "Put limits on cost and latency: token caps, timeouts, retries with backoff, a graceful fallback when the provider fails, and a per-user rate limit.",
+   "Log prompts and outputs only as far as privacy allows; never log secrets or personal data.",
+   "Add a small evaluation set of representative inputs with expected properties, and run it before shipping changes to prompts."]],
+  tests:j=>["A provider timeout or error degrades gracefully instead of breaking the page.","An input containing instructions to the model is treated as data."]},
+
+ {id:"deploy_hosting",label:"Deployment",kind:"code",
+  strong:["deploy","deployment","deploying","hosting","host it","vercel","netlify","render.com","fly.io","heroku","railway","docker","dockerfile","kubernetes","ci/cd","github actions","pipeline","production release"],weak:["production","release","ship","live"],
+  sections:j=>[["Deployment",
+   "Keep the build reproducible from a clean checkout with one documented command. Configuration comes from environment variables, never from committed files.",
+   "Preserve parity between preview and production. Add or update a health check the platform can hit.",
+   "Describe the rollback path before the first deploy, and confirm the deploy does not break existing URLs."]],
+  tests:j=>["A clean checkout builds and starts with only the documented environment variables set."],
+  deliver:j=>["deployment steps and the exact platform settings I must change"]},
+
+ {id:"performance",label:"Performance",kind:"code",
+  strong:["slow","performance","latency","optimize","optimise","optimization","speed up","faster","load time","caching","cache","scalability","scale to","too long to load","time out","times out"],weak:["fast","quick","scale","efficient"],
+  sections:j=>[["Performance Method",
+   "Measure first: record the baseline with a repeatable benchmark or profile before changing code, and state the target.",
+   "Profile to find the largest cost, fix that, re-measure, repeat. Do not micro-optimize code that is not on the hot path.",
+   "Prefer algorithmic and query-level fixes (indexes, N+1 removal, caching with a clear invalidation rule) over clever code.",
+   "Report before and after numbers and how they were obtained."]],
+  tests:j=>["The benchmark shows the improvement and no other measured path got slower."]},
+
+ {id:"security_review",label:"Security review",kind:"code",
+  strong:["security","secure","vulnerability","vulnerabilities","pentest","penetration test","owasp","xss","csrf","sql injection","injection","harden","hardening","threat model","audit the code","security audit"],weak:["attack","exploit","risk","permissions"],
+  sections:j=>[["Security Review Method",
+   "Start with a short threat model: assets, entry points, who the attackers are and what they would want.",
+   "Review authentication and session handling, authorization on every server path, input validation and output encoding, secrets handling, dependency versions, and anything that builds queries, shell commands or HTML from input.",
+   "Fix what is in scope; for anything you leave, give severity, reproduction and a proposed patch.",
+   "Never run destructive or load-generating tests against production."]],
+  tests:j=>["Each fixed finding has a test or a documented manual check demonstrating it is closed."],
+  deliver:j=>["findings by severity, with what was fixed and what remains"]},
+
+ {id:"data_pipeline",label:"Data import or scraping",kind:"code",
+  strong:["scrape","scraping","scraper","crawl","crawler","import","importer","etl","ingest","ingestion","sync data","data pipeline","pull data from","export to csv","bulk load"],weak:["csv","feed","fetch","batch"],
+  sections:j=>[["Pipeline Rules",
+   "Make every step idempotent and resumable: re-running after a failure must not duplicate or lose records.",
+   "Validate incoming data against an explicit schema, quarantine bad rows with a reason, and report counts in, out and rejected.",
+   "Respect source terms, robots rules and rate limits; identify the client honestly and back off on errors.",
+   "Log each run with timing and counts so a bad run can be found and replayed."]],
+  tests:j=>["Running the pipeline twice on the same input yields the same stored result.","Malformed rows are quarantined with a reason rather than aborting the run."]},
+
+ {id:"testing_ci",label:"Tests and CI",kind:"code",
+  strong:["test coverage","unit tests","unit test","integration tests","integration test","e2e","end-to-end tests","end to end tests","test suite","write tests","add tests","continuous integration","ci pipeline","run tests"],weak:["tests","coverage","ci","assert"],
+  sections:j=>[["Testing Standards",
+   "Test behavior through public interfaces, not implementation details. Cover the happy path, the main error paths and the edge cases the job mentions.",
+   "Tests are deterministic: no real network, no sleeps, no dependence on wall-clock time or ordering.",
+   "Make the suite runnable with one command locally and in CI, and keep it fast enough to run on every push."]]},
+
+ /* ---- research, analysis, documents, writing, agents ---- */
+ {id:"market_research",label:"Market or competitor research",kind:"research",
+  strong:["competitor","competitors","competitive","market research","market landscape","landscape","alternatives to","products like","vendors","who else does","what tools exist","compare products","compare tools","obscure products"],weak:["market","products","research","compare","reddit","social","web"],
+  goal:j=>["A current, sourced picture of the landscape that I could act on without redoing the research: who the players are, how they compare, and what I probably did not know."],
+  sections:j=>[
+   ["Source Plan",
+    "Search widely before narrowing. Cover: official sites, docs and pricing pages; review and directory sites; Reddit, Hacker News and specialist forums; X, LinkedIn and YouTube; app stores and marketplaces; funding, hiring and changelog signals; regional and non-English sources where relevant.",
+    "Use several distinct phrasings and adjacent categories so the search does not collapse onto the well-known names.",
+    "Name the sources you actually used and the ones you tried that yielded nothing."],
+   ["Coverage and Obscurity",
+    "Define 'obscure but relevant' explicitly for this job and hunt for it: small teams, niche verticals, open-source projects, regional players, products that solve the problem under a different name.",
+    "Aim for the count the job asks for; if it cannot be met, say so and explain what the ceiling seems to be.",
+    "Deduplicate: one entry per product, with aliases noted."],
+   ["Evidence Standards",
+    "Every factual claim carries a source URL and the date you checked it. Mark anything unverified as a claim, not a fact.",
+    "Prefer sources from the last 12 months unless the job sets a different cutoff; flag anything older that you rely on.",
+    "Where sources conflict, record both and say which you trust and why."],
+   ["Synthesis",
+    "Produce a comparison matrix (product, maker, target customer, key features, pricing, differentiator, recency of activity, source) and a narrative: segments, patterns, gaps and surprises.",
+    "Close with what this means for the requester and which three or four findings deserve a closer look."]],
+  phases:j=>[{t:"Scope and source plan",items:["Define the category boundaries, inclusion criteria and what 'obscure' means here","List the source types and query variants you will run"]},{t:"Gather",items:["Sweep every source type; capture name, URL, date and raw notes for each candidate","Keep going past the familiar names until new sources stop producing new candidates"]},{t:"Verify and deduplicate",items:["Confirm each candidate is real, active and in scope from its own site or docs","Merge duplicates and drop the out-of-scope with a one-line reason"]},{t:"Synthesize",items:["Build the matrix and the narrative","Rank what deserves attention and say why"]}],
+  tests:j=>["Every named product has a working source link and a checked date.","No product appears twice under different names.","The requested count is met, or the shortfall is explained."],
+  deliver:j=>["the comparison matrix","the narrative synthesis with gaps and surprises","the full source list, including dead ends"],
+  done:j=>"A deduplicated, sourced, current comparison plus a short synthesis that someone could act on without repeating the research."},
+
+ {id:"document_review",label:"Document set review",kind:"documents",
+  strong:["pdf","pdfs","document set","documents","spreadsheets","contracts","transcripts","records","evidence","reconcile","discovery","case file","case files","read through all","go through all"],weak:["files","reports","emails","attachments","pages"],
+  goal:j=>["Every provided document read, its relevant contents extracted with a traceable location, contradictions reconciled, and a concise report that someone can verify against the originals."],
+  sections:j=>[
+   ["Inventory",
+    "List every document you were given: name, type, date, size or page count, and whether it was fully readable. Say which ones you could not open or only partially read.",
+    "State your coverage plainly: what was read completely, what was skimmed, what was skipped and why."],
+   ["Extraction",
+    "Record each relevant finding as: the fact, the document, the exact location (page, section, sheet and cell, timestamp), and a short verbatim quote where it matters.",
+    "Keep facts separate from your interpretation. Note dates and versions so later documents can supersede earlier ones."],
+   ["Reconciliation",
+    "Build a contradictions table: the point in dispute, each source's version with its location, which you consider authoritative and why.",
+    "List the gaps: questions the documents were expected to answer but do not, and what would answer them."],
+   ["Reporting",
+    "Lead with the answer to the issue in a few sentences, then the supporting findings in order of importance, then the contradictions and gaps, then an appendix with the inventory.",
+    "Every statement in the report must be traceable to a location in the documents or clearly labeled as your inference."]],
+  phases:j=>[{t:"Inventory",items:["Catalogue every document and its readability","Decide the reading order (most authoritative and most recent first)"]},{t:"Extract",items:["Read everything in scope and capture findings with locations","Keep a running list of contradictions and gaps as they appear"]},{t:"Reconcile and report",items:["Resolve contradictions with reasons","Write the report and verify each claim against its cited location"]}],
+  tests:j=>["Every finding in the report cites a document and location that actually contains it.","The inventory accounts for every file provided.","Contradictions and gaps are listed, not silently resolved."],
+  deliver:j=>["the report with traceable citations","the contradictions table and the gap list","the document inventory with coverage statement"],
+  done:j=>"A concise, traceable report on the issue, plus an inventory, contradictions table and gap list that show the whole document set was covered."},
+
+ {id:"decision_analysis",label:"Decision analysis",kind:"analysis",
+  strong:["decision","decide","should we","should i","board","executive","memo","hypothesis","hypotheses","strategy","strategic","business case","trade-off","tradeoff","trade-offs","options analysis","incomplete data","scenario","scenarios","forecast","recommend whether","go/no-go"],weak:["financial","recommendation","options","risk","budget","plan"],
+  goal:j=>["A clear recommendation with stated confidence, the reasoning that supports it, the assumptions it rests on, and what would change the answer."],
+  sections:j=>[
+   ["Framing",
+    "State the decision to be made in one sentence, who makes it, by when, what is at stake, and how reversible it is.",
+    "Separate what is known, what is estimated and what is unknown. Do not let an estimate pass as a fact."],
+   ["Hypotheses and Tests",
+    "Write down the competing explanations or options, including the uncomfortable ones. For each, say what evidence would support or kill it.",
+    "Test them against the data provided and against what you can research. Drop the losers with a sentence each; do not bury them."],
+   ["Assumptions and Sensitivity",
+    "Keep an explicit assumptions log with the source or reasoning for each. Run the numbers under a pessimistic, base and optimistic case, and say which assumptions move the answer most.",
+    "Name the two or three facts that, if learned, would most change the recommendation, and how to get them."],
+   ["Recommendation",
+    "One line: what to do. Then confidence (high, medium, low) and why. Then the main risks and how to mitigate them. Then the options you rejected and why. Then the first three actions.",
+    "Write the memo so the decision maker can act from the first page; put method and detail in an appendix."]],
+  phases:j=>[{t:"Frame",items:["State the decision, stakes, deadline and reversibility","Sort inputs into known, estimated, unknown"]},{t:"Analyze",items:["Generate competing hypotheses or options","Test each against data and research; log assumptions"]},{t:"Stress-test",items:["Sensitivity on the assumptions that matter","Identify what new information would change the answer"]},{t:"Recommend",items:["Write the one-page memo and the appendix","Check every number has a source or is labeled an estimate"]}],
+  tests:j=>["The recommendation is stated in one sentence with a confidence level.","Every number in the memo is sourced or labeled as an estimate with its basis.","At least one plausible alternative is analyzed and explicitly rejected with reasons."],
+  deliver:j=>["the one-page decision memo","the appendix with method, assumptions log and sensitivity","the list of open questions that would change the answer"],
+  done:j=>"A decision memo a busy reader can act on from the first page, with the reasoning, assumptions and sensitivity behind it in an appendix."},
+
+ {id:"data_analysis",label:"Data analysis",kind:"analysis",
+  strong:["dataset","data set","analyze the data","analyse the data","data analysis","statistics","statistical","trend","trends","correlation","regression","kpi","kpis","excel","spreadsheet analysis","sql query","pivot"],weak:["data","metrics","chart","charts","numbers","analysis","spreadsheet","csv"],
+  sections:j=>[
+   ["Data Audit",
+    "Before analysis, describe the data: rows, columns, types, time span, missing values, duplicates, outliers and how each field is defined. Say what you did about each problem.",
+    "Do not silently drop or impute; record every cleaning decision."],
+   ["Method",
+    "State the method you chose, why it fits the question, the alternatives you considered and the assumptions the method makes. Keep the steps reproducible (code or exact spreadsheet steps)."],
+   ["Results and Caveats",
+    "Report numbers with units, denominators and uncertainty where applicable. Every chart has a title, labeled axes and a source line. Totals must reconcile with the raw data.",
+    "Close with the caveats that a careful reader would raise, and what additional data would tighten the answer."]],
+  tests:j=>["The analysis can be re-run from the raw data by following the recorded steps.","Reported totals reconcile with the source data."],
+  deliver:j=>["the findings with charts and the numbers behind them","the cleaning log and method notes"]},
+
+ {id:"agent_orchestration",label:"Agent orchestration",kind:"agents",
+  strong:["orchestrate","orchestration","orchestrator","multi-agent","multi agent","subagent","subagents","sub-agent","agents","route findings","routing","judge","scout","escalate","escalation","agent workflow","agentic workflow","agent pipeline"],weak:["agent","workflow","tools","route","reliable","at scale"],
+  goal:j=>["A reliable, observable multi-step system where each stage has a clear contract and failures are contained, not a single clever prompt."],
+  sections:j=>[
+   ["Architecture",
+    "Define each role (scout, analyst, judge, router, executor) with its inputs, outputs and the schema of what passes between them. Keep state explicit and stored, not implied by conversation history.",
+    "Separate generation from evaluation: the model that produces an answer never grades its own work."],
+   ["Routing and Escalation",
+    "Write the routing rules down: which cases go where, on what signals, with what confidence thresholds. Escalate on uncertainty, disagreement between agents or high stakes, and cap cost per task.",
+    "Cheap models gather; deeper models reason over what was gathered; the most expensive model is reserved for unresolved cases."],
+   ["Evaluation",
+    "Define the rubric the judge applies and the pass bar. Sample completed tasks for human audit and record disagreement rates.",
+    "Keep a regression set of past tasks with known-good outcomes and run it when prompts or models change."],
+   ["Reliability and Observability",
+    "Timeouts, bounded retries with backoff, idempotent steps, a dead-letter path for tasks that keep failing, and a trace per task showing every step, model, cost and decision.",
+    "Report cost per completed task, not per token."]],
+  phases:j=>[{t:"Design",items:["Roles, contracts and state model","Routing rules, thresholds and cost caps"]},{t:"Build",items:["Implement stages behind their contracts","Tracing, retries, timeouts and dead-letter handling"]},{t:"Evaluate",items:["Rubric, judge and regression set","Run representative tasks and report cost, latency and quality"]}],
+  tests:j=>["A stage failure is retried and then dead-lettered without losing the task.","Every completed task has a trace showing each step and its cost.","The judge and a human agree on a sample of outcomes at an acceptable rate."],
+  deliver:j=>["the architecture with contracts and routing rules","evaluation results on the regression set","cost and latency per completed task"],
+  done:j=>"A running workflow with defined contracts, routing rules, evaluation and tracing, demonstrated on representative tasks with cost and quality reported."},
+
+ {id:"writing_content",label:"Writing",kind:"writing",
+  strong:["write a","write an","write the","draft","blog post","blog","article","essay","newsletter","copy for","landing page copy","press release","speech","script","cover letter","bio","story","poem","email to","letter to","announcement","tagline"],weak:["write","tone","voice","audience","words"],when:j=>!j.kinds.code,
+  goal:j=>["A finished piece a reader would actually want to read: specific, true, in the right voice, at the right length."],
+  sections:j=>[
+   ["Audience and Purpose","Say who will read this, what they already know, what they should think or do afterwards, and the one thing they must take away."],
+   ["Voice and Structure","Match the tone the job asks for. Open with the point, not a warm-up. Use concrete detail over adjectives. Vary sentence length. Cut anything that does not serve the reader."],
+   ["Process","Outline, draft, then tighten: remove filler, hedges and repetition. Fact-check every claim and mark anything you could not verify. Read it aloud once for rhythm."],
+   ["Quality Bar","No invented facts, quotes or statistics. Length within the target. Formatting appropriate to where it will be published."]],
+  phases:j=>[{t:"Outline",items:["Audience, purpose, key message, structure"]},{t:"Draft",items:["Full draft in the target voice"]},{t:"Tighten and check",items:["Cut filler, verify claims, fix rhythm","Offer two alternative titles or openings"]}],
+  tests:j=>["Every factual claim is verifiable or marked as unverified.","The piece meets the length and format target."],
+  deliver:j=>["the finished piece","two alternative titles or openings","notes on anything that should be verified before publishing"],
+  done:j=>"A publishable draft in the requested voice and length, with claims checked and alternatives for the title or opening."},
+
+ {id:"planning_roadmap",label:"Planning",kind:"analysis",
+  strong:["roadmap","project plan","timeline","milestones","launch plan","rollout plan","rollout","implementation plan","phases of","work plan","action plan","plan for"],weak:["plan","schedule","phases","steps","priorities"],when:j=>!j.kinds.code,
+  sections:j=>[["Plan Structure",
+   "Start with the goal, the constraints (time, people, money, dependencies) and the definition of done.",
+   "Lay out phases with milestones, owners and the evidence that a milestone is met. Put the riskiest or most uncertain work early.",
+   "List the top risks with a mitigation and a trigger for each, and the decision points where the plan could change direction."]],
+  tests:j=>["Every milestone has an observable completion criterion.","Dependencies between phases are explicit."],
+  deliver:j=>["the phased plan with milestones and owners","the risk register and decision points"]},
+
+ {id:"learning_explain",label:"Explanation or teaching",kind:"writing",
+  strong:["explain","teach me","help me understand","tutorial","walk me through","walkthrough","lesson","how does","what is the difference","learn about","study guide","eli5"],weak:["understand","learn","beginner","concept","example"],when:j=>!j.kinds.code,
+  sections:j=>[["Teaching Approach",
+   "Start with the core idea in two or three plain sentences, then an analogy that maps onto the real mechanism, then a worked example.",
+   "Name the common misconceptions and why they are wrong. Build from the simple case to the real one; do not start with edge cases.",
+   "End with two or three questions the reader can use to check their own understanding, and pointers for going deeper."]],
+  tests:j=>["A reader with the stated background could follow it without looking anything up.","The analogy does not break for the cases covered."],
+  deliver:j=>["the explanation with analogy and worked example","check-your-understanding questions"]}
+];
+
+const KIND_ROLE_ENV={
+ code:j=>` working inside an existing${j.public?" public":""} ${j.appNoun}`,
+ research:()=>" with live web access",
+ documents:()=>" working from the documents provided",
+ analysis:()=>"",agents:()=>"",writing:()=>"",general:()=>""
+};
+const KIND_DONE={
+ code:j=>`The work is implemented in the ${j.appNoun}, existing functionality is intact, tests cover the new behavior, and the summary requested below is delivered.`,
+ research:()=>"A sourced, deduplicated, current answer that someone could act on without repeating the research.",
+ documents:()=>"A concise, traceable report that accounts for every document provided.",
+ analysis:()=>"A clear recommendation with stated confidence, supported by evidence and an explicit assumptions log.",
+ agents:()=>"A working, observable workflow demonstrated on representative tasks.",
+ writing:()=>"A finished piece in the requested voice and length, with every claim checked.",
+ general:()=>"The task is complete as described, checked against this brief, with assumptions and open questions listed."
+};
+const KIND_FORMAT={
+ code:"Code changes in the repository, plus the written summary requested under Final Deliverable.",
+ research:"A comparison matrix plus a narrative synthesis, with a source list.",
+ documents:"A report with traceable citations, plus an inventory and a contradictions table.",
+ analysis:"A one-page memo with a detailed appendix.",
+ agents:"Working code or configuration plus an architecture note and evaluation results.",
+ writing:"The finished piece, ready to publish, with brief notes.",
+ general:"Choose the form that best fits the task and say briefly why."
+};
+
+function detectKinds(j){
+ const h=j.has, n=j.n;
+ const k={};
+ /* Two coding keywords, or one unmistakable software noun. A lone "test" or "function" in a memo brief must not make it a coding job. */
+ k.code=n.code>=4.4||h("app","application","web app","webapp","website","repo","repository","codebase","source code","script","plugin","extension","login","sign in","dashboard","endpoint","endpoints","database","deploy","deployment","frontend","front-end","backend","back-end","api","bug","debug","refactor","stripe","ui","component","components","html","css","javascript","typescript","python","react","nextjs","next.js","node","sql","server","cli","library","package","github","pull request","commit");
+ k.research=n.research>=2||h("research","competitor","competitors","market","landscape","find out","look up","what tools","who else");
+ k.documents=h("pdf","pdfs","documents","document set","spreadsheets","contracts","transcripts","records","case file");
+ k.analysis=j.stakes>=2||h("decision","decide","memo","hypothes","strategy","trade-off","tradeoff","should we","should i","analyze","analyse","analysis","forecast");
+ k.agents=h("orchestrat","multi-agent","multi agent","subagent","agents","route","judge","escalate");
+ k.writing=h("write","draft","blog","article","essay","newsletter","copy","speech","poem","story","letter","explain","teach","tutorial");
+ return k;
+}
+/* The primary kind frames the brief (role, before-you-begin list, deliverable format). A fired specialist playbook settles ties. */
+function primaryKind(j){
+ const k=j.kinds;
+ if(k.code) return "code";
+ if(k.agents) return "agents";
+ if(j.fired("decision_analysis")&&!j.fired("market_research")) return "analysis";
+ if(j.fired("market_research")) return "research";
+ if(j.fired("document_review")) return "documents";
+ return k.research?"research":k.analysis?"analysis":k.documents?"documents":k.writing?"writing":"general";
+}
+function playbookFires(p,j){
+ if(p.when&&!p.when(j)) return false;
+ if(p.kind==="code"&&!j.kinds.code) return false;
+ if(!p.strong.length&&!p.weak.length) return true; /* gated only by `when` and kind */
+ if(p.strong.some(w=>j.has(w))) return true;
+ return p.weak.filter(w=>j.has(w)).length>=2;
+}
+function analyzeJob(text){
+ const lower=text.toLowerCase(), n=needs(lower);
+ const j={text,lower,n,stakes:stakes(lower),has:(...ws)=>ws.some(w=>matchWord(lower,w))};
+ j.long=text.length>1400; j.structured=/^\s*(?:[-*•]|\d+[.)])\s+/m.test(text);
+ j.requirements=extractRequirements(text); j.exclusions=extractExclusions(text);
+ j.public=j.has("public","publicly","open source","open-source","open sourced","github pages","made public","open repo");
+ j.passwordless=/no password|without (?:a )?password|password-?less|just (?:their|someones?|someone's|a person's|an|the) email|email[- ]only|only (?:an|their|the) email/.test(lower);
+ const repoish=j.has("repo","repository","codebase","github"), appish=j.has("app","application","web app","webapp","website","site","service","tool","dashboard");
+ j.appNoun=repoish&&appish?"application and its repository":repoish?"repository":appish?"application":"codebase";
+ j.kinds=detectKinds(j);
+ const fired=new Set(playbooks.filter(p=>playbookFires(p,j)).map(p=>p.id));
+ j.fired=id=>fired.has(id);
+ let grew=true; while(grew){ grew=false; playbooks.forEach(p=>{ if(fired.has(p.id)&&p.implies) p.implies.forEach(id=>{ if(!fired.has(id)){fired.add(id);grew=true} }) }); }
+ j.playbooks=playbooks.filter(p=>fired.has(p.id));
+ j.kinds.primary=primaryKind(j);
+ return j;
+}
+function jobHints(j){ return j.playbooks.filter(p=>p.id!=="code_core").map(p=>p.label); }
+
+/* Assemble the brief. m = target model, g = its guidance. The description drives every section; wizard answers refine them. */
 function buildPrompt(m,g){
- const a=pb.answers, n=pb.rec.n, task=$("task").value.trim();
- const L=[];
- L.push("# Role", `You are ${g.role}. ${g.style}`, "");
- L.push("# Task", task);
- if(a.outcome) L.push("", `A finished result looks like this: ${a.outcome}`);
- L.push("");
- if(a.context) L.push("# Context", a.context, "");
- L.push("# Deliverable");
- L.push(a.format && a.format!=="Let the model decide" ? `Format: ${a.format}.` : "Format: choose the form that best fits the task and say briefly why.");
- const depthMap={Concise:"Keep it concise: lead with the decision or result and the few reasons that matter.",Standard:"Give a complete answer with the supporting detail needed to act on it.",Exhaustive:"Be exhaustive: examine every relevant angle and make the reasoning fully traceable."};
+ const a=pb.answers, task=$("task").value.trim(), j=analyzeJob(task), K=j.kinds.primary, code=j.kinds.code;
+ const collect=key=>j.playbooks.flatMap(p=>p[key]?p[key](j,a,m):[]);
+ const uniq=arr=>arr.filter((x,i)=>x&&arr.indexOf(x)===i);
+ const L=[], H=t=>{L.push(`# ${t}`)}, B=()=>{if(L[L.length-1]!=="") L.push("")};
+ const material=code?"the repository":j.kinds.documents?"the documents provided":"the material provided";
+
+ /* Role */
+ H("Role");
+ L.push(`You are ${g.role}${(KIND_ROLE_ENV[K]||KIND_ROLE_ENV.general)(j)}. ${g.style}`);
+ L.push(code?"Your task is to deliver the job described below without materially changing existing behavior that was not part of the request.":"Your task is to complete the job described below to a standard that a demanding expert reviewer would accept.");
+ B();
+ L.push(code?"Before changing anything:":"Before you begin:");
+ (code?[
+   `Inspect ${material} and identify the framework, hosting environment, database or API structure, and any existing authentication, analytics or logging.`,
+   "Reuse the existing stack whenever practical.",
+   "Do not rebuild functioning parts of the application unnecessarily.",
+   "Make all changes in a clean feature branch with clear commit messages."
+ ].concat(j.public?["Assume every committed file is publicly visible."]:[]):[
+   "Restate the job in one paragraph and list what you take it to mean, including anything ambiguous and how you will read it.",
+   `Inventory what you have been given in ${material} and what is missing.`,
+   "Choose your method and say why in a sentence or two, then proceed."
+ ]).forEach((x,i)=>L.push(`${i+1}. ${x}`));
+ B();
+
+ /* Goal, built around the description */
+ H("Goal");
+ L.push("The job, in the requester's words:");
+ task.split(/\r?\n/).forEach(line=>L.push(`> ${line}`));
+ B();
+ if(j.long||j.structured){
+   L.push("The description above is already detailed. Treat every line of it as a requirement; the sections below add the engineering and quality standards that apply.");
+ } else if(j.requirements.length){
+   L.push("Requirements taken from that description, each of which must be satisfied:");
+   j.requirements.slice(0,14).forEach((r,i)=>L.push(`${i+1}. ${r}`));
+   if(j.requirements.length>14) L.push(`(${j.requirements.length-14} further clauses in the description above also apply.)`);
+ }
+ const goals=uniq(collect("goal"));
+ if(goals.length){ B(); L.push("Working interpretation:"); goals.forEach(x=>L.push(`- ${x}`)); }
+ if(j.exclusions.length){ B(); L.push("Explicitly ruled out by the requester (do not add these back, even helpfully):"); j.exclusions.forEach(x=>L.push(`- ${x}`)); }
+ B();
+ const doneFrom=j.playbooks.find(p=>p.done&&p.id!=="code_core");
+ L.push(`Definition of done: ${a.outcome || (doneFrom?doneFrom.done(j):(KIND_DONE[K]||KIND_DONE.general)(j))}`);
+ B();
+
+ /* Context and access */
+ const ctx=[];
+ if(a.context) ctx.push(a.context);
+ if(a.tools&&a.tools.length){
+   if(a.tools.includes("Nothing beyond this prompt")) ctx.push("You have no tools or external access beyond this prompt. State clearly anything you would need to check but cannot.");
+   else ctx.push(`You have access to: ${a.tools.join(", ").toLowerCase()}. Use them rather than guessing.`);
+ }
+ if(a.sources) ctx.push(`Sources and recency: ${a.sources}`);
+ if(ctx.length){ H("Context"); ctx.forEach(x=>L.push(x)); B(); }
+
+ /* Domain sections from the playbooks */
+ collect("sections").forEach(sec=>{ H(sec[0]); sec.slice(1).forEach(x=>L.push(x)); B(); });
+
+ /* Deliverable */
+ H("Deliverable");
+ L.push(a.format && a.format!=="Let the model decide" ? `Format: ${a.format}.` : `Format: ${KIND_FORMAT[K]||KIND_FORMAT.general}`);
+ const depthMap={Concise:"Thoroughness: keep it concise. Lead with the decision or result and the few reasons that matter.",Standard:"Thoroughness: give a complete answer with the supporting detail needed to act on it.",Exhaustive:"Thoroughness: be exhaustive. Examine every relevant angle and make the reasoning fully traceable."};
  const dkey=Object.keys(depthMap).find(k=>(a.depth||"").startsWith(k));
  L.push(depthMap[dkey||"Standard"]);
  if(a.audience) L.push(`Audience and tone: ${a.audience}`);
- L.push("");
- const cons=[];
- if(a.constraints) cons.push(a.constraints);
- if(a.tools&&a.tools.length){
-   if(a.tools.includes("Nothing beyond this prompt")) cons.push("You have no tools or external access beyond this prompt. State clearly anything you would need to check but cannot.");
-   else cons.push(`You have access to: ${a.tools.join(", ").toLowerCase()}. Use them rather than guessing.`);
+ B();
+
+ /* Constraints */
+ const cons=uniq([a.constraints].concat(collect("constraints")).filter(Boolean));
+ if(cons.length){ H("Constraints"); cons.forEach(c=>L.push(`- ${c}`)); B(); }
+
+ /* Approach: playbook phases wrapped in the core phases for this kind of work */
+ const phases=collect("phases"); /* code_core is first in the playbook list, so its assessment phase leads */
+ if(code){
+   const risky=["access_gate","usage_analytics","admin_dashboard","database","api_backend","public_repo","payments","file_upload","ai_feature","email_delivery"].some(id=>j.fired(id));
+   if(risky&&!j.fired("security_review")) phases.push({t:"Security review",items:["Review for exposed secrets, client-side authorization mistakes, database access vulnerabilities, session spoofing, input that reaches queries or HTML unescaped, and public-repository risks.","Fix anything you find before reporting."]});
+   phases.push({t:"Documentation",items:["Update the README: how the change works, setup and required environment variables, local development and production deployment steps, how to use or reach what was built, and any follow-up the requester must do."]});
  }
- if(a.sources) cons.push(`Sources and recency: ${a.sources}`);
- if(a.pushback){
-   if(a.pushback.startsWith("Yes")) cons.push("If you believe the framing or approach is wrong, say so plainly and propose an alternative before proceeding.");
-   else if(a.pushback.startsWith("Flag")) cons.push("If you have concerns about the approach, flag them briefly, then proceed as asked.");
-   else cons.push("Execute exactly as specified. Do not redesign or expand the scope.");
+ if(!phases.length){
+   phases.push({t:"Understand",items:["Restate the job and list assumptions"]},{t:"Do the work",items:["Execute in the order that reduces uncertainty fastest; check each step before the next"]},{t:"Check and deliver",items:["Verify against this brief and the definition of done","Report as described under Output"]});
  }
- if(cons.length){L.push("# Constraints"); cons.forEach(c=>L.push(`- ${c}`)); L.push("")}
  const ap=[];
- if(n.breadth>=2||n.research>=2) ap.push("Start wide: gather candidates and evidence from diverse sources before narrowing.");
- if(n.depth>=2) ap.push("Identify root causes and test competing explanations rather than accepting the first plausible answer.");
- if(n.code>=2) ap.push("Read the relevant code before changing it. Keep changes minimal, explain each one, and preserve behavior you were not asked to change.");
- if(n.agent>=2) ap.push("Work step by step. After each significant step, check the result before continuing, and do not stop until the deliverable is complete or you are genuinely blocked.");
- if(n.long>=2) ap.push("Process all provided material before concluding. Note gaps, duplicates and contradictions explicitly.");
- if(n.multi>=2) ap.push("Treat images, tables and documents as primary evidence and reference the exact item you are drawing from.");
- if(n.discipline>=2) ap.push("Follow the specification precisely. Where it is silent, choose the simplest conventional option and note it.");
+ if(j.n.breadth>=2||j.n.research>=2) ap.push("Start wide: gather candidates and evidence from diverse sources before narrowing.");
+ if(j.n.depth>=2) ap.push("Identify root causes and test competing explanations rather than accepting the first plausible answer.");
+ if(code) ap.push("Read the relevant code before changing it. Keep changes minimal and reviewable, and preserve behavior you were not asked to change.");
+ if(j.n.agent>=2||code) ap.push("After each significant step, check the result before continuing. Do not stop until the deliverable is complete or you are genuinely blocked.");
+ if(j.n.long>=2) ap.push("Process all provided material before concluding. Note gaps, duplicates and contradictions explicitly.");
+ if(j.n.multi>=2) ap.push("Treat images, tables and documents as primary evidence and reference the exact item you are drawing from.");
+ if(j.n.discipline>=2) ap.push("Follow the specification precisely. Where it is silent, choose the simplest conventional option and note it.");
  if(!ap.length) ap.push("Plan briefly, then execute. Prefer clarity and correctness over breadth.");
- L.push("# Approach"); ap.forEach(x=>L.push(`- ${x}`)); L.push("");
- L.push("# Verification");
- L.push(a.verify || "Before finishing, check your own work against the task and the deliverable definition above. State what you verified and what you could not.");
- L.push("");
- L.push("# Output");
- L.push("Lead with the result. Then give the reasoning or changes, then open questions and anything you assumed. If something in this prompt is ambiguous, state your interpretation and proceed, unless proceeding would be unsafe or wasteful.");
- return L.join("\n");
+ H(code?"Implementation Process":"Approach");
+ ap.forEach(x=>L.push(`- ${x}`)); B();
+ L.push("Work through this in phases:");
+ phases.forEach((p,i)=>{ L.push(`Phase ${i+1} — ${p.t}`); p.items.forEach(x=>L.push(`- ${x}`)); });
+ B();
+
+ /* Verification */
+ H(code?"Testing":"Verification");
+ const tests=uniq([a.verify?`Requester's verification requirement: ${a.verify}`:null].concat(collect("tests")).filter(Boolean));
+ if(!tests.length) tests.push("Check your own work against the Goal, the requirements list and the definition of done above. State what you verified and what you could not.");
+ else tests.push("Check the result against every numbered requirement under Goal and state which ones you verified and how.");
+ L.push(code?"Test at minimum:":"Verify at minimum:");
+ tests.forEach((t,i)=>L.push(`${i+1}. ${t}`));
+ B();
+
+ /* Final deliverable */
+ H("Final Deliverable");
+ const del=uniq((code?[]:["the finished work itself, not a description of it"]).concat(collect("deliver")).concat(["assumptions you made and why","open questions and what would resolve them"]));
+ L.push("When finished, provide:");
+ del.forEach(x=>L.push(`- ${x}`));
+ B();
+
+ /* Working rules */
+ H("Working Rules");
+ L.push(`Do not stop simply to ask questions unless something truly cannot be safely determined from ${material}. Make the reasonable call, record it under assumptions, and continue.`);
+ if(a.pushback){
+   if(a.pushback.startsWith("Yes")) L.push("If you believe the framing or approach is wrong, say so plainly and propose an alternative before proceeding.");
+   else if(a.pushback.startsWith("Flag")) L.push("If you have concerns about the approach, flag them briefly, then proceed as asked.");
+   else L.push("Execute exactly as specified. Do not redesign or expand the scope.");
+ } else L.push("If you disagree with an approach in this brief, say so in one paragraph, then proceed with the requested approach unless it is unsafe or clearly wasteful.");
+ L.push("Lead with the result. Then give the reasoning or changes, then open questions and anything you assumed. If something in this brief is ambiguous, state your interpretation and proceed.");
+ L.push(code?"Do not merely describe the implementation. Implement it in the repository.":"Deliver the finished work, not a plan for doing it, unless the deliverable is itself a plan.");
+ return L.join("\n").replace(/\n{3,}/g,"\n\n").trim();
 }
 function renderOutput(){
  $("wizard").style.display="none";
@@ -786,8 +1408,8 @@ function renderOutput(){
  $("outTitle").textContent=`Prompt for ${m.name} · ${rt.label}`;
  $("promptOut").value=buildPrompt(m,g);
  let extra="";
- if(rt.label.startsWith("Your ")){
-   const s=rt.label.includes("ChatGPT")?"chatgpt":"claude", it=pb.subs.items[s];
+ if(rt.sub){
+   const s=rt.sub, it=pb.subs.items[s];
    if(m.id===it.fallback.id&&it.fallback.id!==it.pick.id) extra=` <b>Fallback tier:</b> this prompt is tuned for ${esc(m.name)} standing in for ${esc(it.pick.name)}. It already asks for stated assumptions and self-verification; review the hardest parts yourself.`;
    else if(s==="chatgpt"&&m.id==="astra"&&it.plan==="plus") extra=` <b>Where to run it:</b> on Plus, Astra is available inside Codex and Work mode, not the regular chat window.`;
    else if(s==="claude"&&m.id==="fable") extra=` <b>Where to run it:</b> Fable-tier access lives on Max only when Anthropic offers it in the app; if it is missing from your picker, switch the target to Opus 5.`;
@@ -810,8 +1432,18 @@ const PATCH_FIELDS={input:"num",output:"num",name:"str",desc:"str",best:"str",ta
 const SCORE_FIELDS=["breadth","depth","agent","code","long","research","multi","discipline","value"];
 const rc={changes:[],through:null,state:null};
 
-function loadRc(){ try{ const s=JSON.parse(localStorage.getItem("pm_recheck")||"null"); if(s&&Array.isArray(s.applied)&&isoDate(s.asOf)) return s; }catch(e){} return {asOf:PUBLISHED_AS_OF,applied:[]}; }
-function saveRc(){ try{ localStorage.setItem("pm_recheck",JSON.stringify(rc.state)) }catch(e){} }
+function loadRc(){ try{ const s=JSON.parse(localStorage.getItem("pm_recheck")||"null"); if(s&&Array.isArray(s.applied)&&isoDate(s.asOf)) return s; }catch(e){ storageWarn("applied Recheck changes",e) } return {asOf:PUBLISHED_AS_OF,applied:[]}; }
+/* Applied changes are replayed in order on every load, so the list only grows. Cap it well above any realistic use (a few dozen
+   per recheck) so a scripted or runaway paste cannot fill localStorage; the oldest entries go first, and the console says so. */
+const MAX_APPLIED=200;
+function saveRc(){
+ if(rc.state.applied.length>MAX_APPLIED){
+   const drop=rc.state.applied.length-MAX_APPLIED;
+   rc.state.applied.splice(0,drop);
+   console.warn(`[recheck] applied-change list capped at ${MAX_APPLIED}; dropped the ${drop} oldest`);
+ }
+ try{ localStorage.setItem("pm_recheck",JSON.stringify(rc.state)) }catch(e){ storageWarn("applied Recheck changes",e) }
+}
 function isoDate(s){ const m=String(s||"").match(/^\d{4}-\d{2}-\d{2}/); return m?m[0]:null; }
 function todayIso(){ return new Date().toLocaleDateString("en-CA"); }
 function fmtDate(iso){ const d=new Date(iso+"T00:00:00"); return isNaN(d)?iso:d.toLocaleDateString("en-US",{month:"long",day:"numeric",year:"numeric"}); }
@@ -933,6 +1565,7 @@ Rules:
 /* Direct browser call to the Claude API with server-side web search. The key is sent only to api.anthropic.com. */
 const RECHECK_TIMEOUT_MS=5*60*1000; /* per API call; a search-heavy turn normally finishes well inside this */
 const RECHECK_MAX_TOKENS=16000;
+const RECHECK_MAX_CONTINUATIONS=5; /* pause_turn resumes before giving up */
 async function callClaude(key,model,prompt,onStatus){
  const headers={"content-type":"application/json","x-api-key":key,"anthropic-version":"2023-06-01","anthropic-dangerous-direct-browser-access":"true","anthropic-beta":"server-side-fallback-2026-07-01"};
  const user={role:"user",content:prompt};
@@ -952,12 +1585,15 @@ async function callClaude(key,model,prompt,onStatus){
      throw new Error(msg);
    }
    /* Long searches pause server-side; resend the paused assistant turn unchanged to let it continue. */
-   if(data.stop_reason==="pause_turn"&&hops<5){ hops++; onStatus(`Still searching… (continuation ${hops} of 5)`); body.messages=[user,{role:"assistant",content:data.content}]; continue; }
+   if(data.stop_reason==="pause_turn"&&hops<RECHECK_MAX_CONTINUATIONS){ hops++; onStatus(`Still searching… (continuation ${hops} of ${RECHECK_MAX_CONTINUATIONS})`); body.messages=[user,{role:"assistant",content:data.content}]; continue; }
    break;
  }
  const u=data.usage||{}, searches=u.server_tool_use?u.server_tool_use.web_search_requests:null;
  /* One line per run so a failed or expensive recheck can be understood after the fact from the console. */
  console.info("[recheck]",{model:data.model||model,stop_reason:data.stop_reason,web_searches:searches,input_tokens:u.input_tokens,output_tokens:u.output_tokens,continuations:hops});
+ /* Still paused after the last continuation: the search ran out of budget. Say that, rather than handing a half-finished
+    turn to the JSON parser and reporting a parsing problem. */
+ if(data.stop_reason==="pause_turn") throw new Error(`the search was still running after ${RECHECK_MAX_CONTINUATIONS} continuations and was stopped; run again, or choose a faster model`);
  if(data.stop_reason==="refusal") throw new Error("the model declined this request"+(data.stop_details&&data.stop_details.explanation?": "+data.stop_details.explanation:"."));
  if(data.stop_reason==="max_tokens") throw new Error(`the reply was cut off at the ${RECHECK_MAX_TOKENS.toLocaleString("en-US")}-token output limit before it finished; run again, or ask for fewer changes`);
  const text=(data.content||[]).filter(b=>b.type==="text").map(b=>b.text).join("");
@@ -1009,7 +1645,7 @@ $("rcRun").onclick=async()=>{
  if(!key){ rcStatus("Enter an Anthropic API key, or use Option B.","err"); $("rcKey").focus(); return }
  const model=$("rcModel").value;
  /* The key lives in sessionStorage only (this tab, cleared on close); it is never written to localStorage. */
- try{ if($("rcRemember").checked) sessionStorage.setItem("pm_apikey",key); else sessionStorage.removeItem("pm_apikey"); localStorage.setItem("pm_rcmodel",model) }catch(e){}
+ try{ if($("rcRemember").checked) sessionStorage.setItem("pm_apikey",key); else sessionStorage.removeItem("pm_apikey"); localStorage.setItem("pm_rcmodel",model) }catch(e){ storageWarn("the remembered key and model",e) }
  trackEvent("recheck_run",{mode:"api",model});
  $("rcRun").disabled=true; rcStatus(`Searching with ${model}… this usually takes one to three minutes.`);
  try{
@@ -1020,24 +1656,32 @@ $("rcRun").onclick=async()=>{
 };
 $("rcAll").onclick=()=>{ rc.changes.forEach(c=>c.selected=true); renderChanges() };
 $("rcNone").onclick=()=>{ rc.changes.forEach(c=>c.selected=false); renderChanges() };
+/* Two changes are the same only if everything that affects the map or the notes list matches. Matching on kind + model + title
+   alone dropped a second, different change that happened to reuse a headline, while the status line still counted it as applied. */
+function sameChange(a,b){
+ return a.kind===b.kind&&a.model===b.model&&a.title===b.title&&a.summary===b.summary&&(a.effective||null)===(b.effective||null)
+   &&JSON.stringify(a.patch||null)===JSON.stringify(b.patch||null);
+}
 $("rcApply").onclick=()=>{
  const sel=rc.changes.filter(c=>c.selected);
  trackEvent("recheck_applied",{applied:sel.length});
  const through=rc.through||todayIso();
+ let added=0, dup=0;
  sel.forEach(c=>{
    const {selected,uid,...rest}=c;
-   if(!rc.state.applied.some(a=>a.kind===rest.kind&&a.model===rest.model&&a.title===rest.title)) rc.state.applied.push(rest);
+   if(rc.state.applied.some(a=>sameChange(a,rest))) dup++; else { rc.state.applied.push(rest); added++; }
  });
  if(through>rc.state.asOf) rc.state.asOf=through;
  saveRc(); applyState();
  rc.changes=rc.changes.filter(c=>!c.selected); renderChanges();
  if(!rc.changes.length) $("rcResults").style.display="none";
- rcStatus(`Applied ${sel.length} change${sel.length===1?"":"s"}. Current view is now ${fmtDate(rc.state.asOf)}. Re-run the task chooser to use the updated data.`,"ok");
+ const dupNote=dup?` ${dup} ${dup===1?"was":"were"} already applied earlier and skipped.`:"";
+ rcStatus(`Applied ${added} change${added===1?"":"s"}.${dupNote} Current view is now ${fmtDate(rc.state.asOf)}. Re-run the task chooser to use the updated data.`,"ok");
  $("viewDate").scrollIntoView({behavior:"smooth",block:"center"});
 };
 $("rcReset").onclick=()=>{
  trackEvent("recheck_reset");
- rc.state={asOf:PUBLISHED_AS_OF,applied:[]}; try{ localStorage.removeItem("pm_recheck") }catch(e){}
+ rc.state={asOf:PUBLISHED_AS_OF,applied:[]}; try{ localStorage.removeItem("pm_recheck") }catch(e){ storageWarn("applied Recheck changes",e) }
  applyState(); rcStatus("Back to the published snapshot of "+fmtDate(PUBLISHED_AS_OF)+".","ok");
 };
 
@@ -1180,8 +1824,8 @@ $("gateForm").onsubmit=e=>{ if(e&&e.preventDefault) e.preventDefault(); gate.sub
 $("signOut").onclick=()=>gate.signOut();
 
 /* Boot: restore remembered settings and any changes applied earlier in this browser, then draw the map. */
-try{ localStorage.removeItem("pm_apikey"); /* earlier versions kept the key on disk; purge it */ }catch(e){}
-try{ const k=sessionStorage.getItem("pm_apikey"); if(k){ $("rcKey").value=k; $("rcRemember").checked=true } const mm=localStorage.getItem("pm_rcmodel"); if(mm) $("rcModel").value=mm; }catch(e){}
+try{ localStorage.removeItem("pm_apikey"); /* earlier versions kept the key on disk; purge it */ }catch(e){ console.warn("[storage] could not purge a legacy key entry",e) }
+try{ const k=sessionStorage.getItem("pm_apikey"); if(k){ $("rcKey").value=k; $("rcRemember").checked=true } const mm=localStorage.getItem("pm_rcmodel"); if(mm) $("rcModel").value=mm; }catch(e){ storageWarn("the remembered key and model",e) }
 try{ rc.state=loadRc(); applyState(); }
 catch(e){ console.error("Recheck restore failed; showing the published snapshot.",e); rc.state={asOf:PUBLISHED_AS_OF,applied:[]}; renderModels(); renderPricing(); }
 if(!COLLECTOR_URL) console.info("Usage tracking is off: COLLECTOR_URL is empty.");

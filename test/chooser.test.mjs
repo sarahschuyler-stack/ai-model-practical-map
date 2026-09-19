@@ -65,3 +65,11 @@ test("an input with no signals shows the general-purpose notice; a real task hid
   q.el("clear").onclick();
   assert.equal(q.el("chooserNote").style.display, "none");
 });
+
+test("keywords are matched literally even when they contain regex characters", () => {
+  assert.ok(p.hasWord("port the c++ module", "c++"));
+  assert.ok(!p.hasWord("the ccc module", "c++"), "+ is not a quantifier");
+  assert.ok(p.hasWord("migrate to node.js today", "node.js"));
+  assert.ok(!p.hasWord("nodexjs", "node.js"), ". is not a wildcard");
+  assert.ok(p.hasWord("costs $5 each", "$5"));
+});

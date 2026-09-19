@@ -7,7 +7,7 @@ Live site: served by GitHub Pages from the `main` branch root.
 ## What the page does
 
 1. **Task chooser.** Describe a job in plain text (or click a preset). The page scores the description for eight task signals and returns three picks: the cheapest model that clears the capability bar, the most capable model regardless of price, and the best practical balance of capability and cost.
-2. **Prompt builder.** Up to ten short questions turn the job into a structured prompt (Role, Task, Deliverable, Constraints, Approach, Verification, Output) tuned to the chosen model. It also tells you which ChatGPT or Claude subscription tier fits the job and when an upgrade would pay off.
+2. **Prompt builder.** The Step 1 description is the raw material. The builder splits it into numbered requirements and explicit exclusions, works out what kind of job it is (software change, research, document review, decision analysis, agent workflow, writing) and fires the domain playbooks it mentions (an email gate, usage analytics, payments, a market scan, a decision memo...). Each playbook contributes goal bullets, requirement sections, implementation phases, tests and final-deliverable items, and the result is a full brief tuned to the chosen model. Up to ten short questions layer detail on top; skipping them all still produces a complete brief. It also tells you which ChatGPT or Claude subscription tier fits the job and when an upgrade would pay off.
 3. **Recheck.** Ask an AI to search the web for price, capability and availability changes since the snapshot date, review the findings one by one, and apply the ones you trust. Applied changes are stored in your browser and replayed on top of the published snapshot every load. Reset returns to the published snapshot.
 
 The page itself is still one static file with no build step and no runtime dependency. Visitors enter an email before using it, and a small companion service in `collector/` (deployed to Vercel with a Postgres database) records who visited, when, for how long and which features they used, and serves an admin dashboard. See [Sign-in and usage analytics](#sign-in-and-usage-analytics).
@@ -20,7 +20,7 @@ Open `index.html` directly, or serve the folder so relative behaviour matches Gi
 npm run serve
 ```
 
-That runs `python -m http.server 8765 --bind 127.0.0.1`. The same command is in `.claude/launch.json` for the Claude Code browser preview.
+That runs `python -m http.server 8765 --bind 127.0.0.1`. Any static file server works; nothing in the page depends on the port.
 
 ## Tests
 
@@ -28,18 +28,23 @@ That runs `python -m http.server 8765 --bind 127.0.0.1`. The same command is in 
 npm test
 ```
 
-Requires Node 22 or newer and nothing else. `test/harness.mjs` extracts the inline `<script>` from `index.html`, evaluates it against a stub DOM and stub storage, and returns the functions. The suites cover:
+Requires Node 22 or newer and nothing else. `test/harness.mjs` extracts the inline `<script>` from `index.html` and evaluates it against a small stub DOM and stub storage. The stub DOM parses the page's static markup and anything the script assigns to `innerHTML`, so tests can find rendered buttons with `querySelectorAll`, read their `dataset`, and `click()` them the way a user does. The suites cover:
 
 | File | Covers |
 |---|---|
 | `test/smoke.test.mjs` | The script boots and renders the snapshot; all presets produce picks |
 | `test/xss.test.mjs` | Recheck-sourced text renders escaped in cards, pricing table and results |
-| `test/chooser.test.mjs` | Word-boundary keyword matching, shared stakes signal, golden preset picks, no-signal notice |
-| `test/recheck.test.mjs` | JSON parsing (fenced, prose-wrapped, truncated, hostile), patch validation, apply/reset loop, `callClaude` with a mocked API |
+| `test/chooser.test.mjs` | Word-boundary keyword matching, literal matching of regex characters, shared stakes signal, golden preset picks, no-signal notice |
+| `test/prompt.test.mjs` | The email-gate example produces the full brief; wizard answers layer in; requirement and exclusion extraction; kind detection per preset; non-code framing; every preset for every target; the Step 2 strip |
+| `test/ui.test.mjs` | The interactive layer: presets, plan buttons, ladder rungs, target chips, every wizard control, Copy prompt, Recheck checkboxes, Select all / none, Apply |
+| `test/recheck.test.mjs` | JSON parsing (fenced, prose-wrapped, truncated, hostile), patch validation, apply/reset loop, duplicate detection, the 200-entry cap, `callClaude` with a mocked API including the continuation budget |
+| `test/storage.test.mjs` | Blocked or unreadable browser storage: the page keeps working, warns once per cause in the console, and shows one notice |
 | `test/apikey.test.mjs` | Key storage rules |
 | `test/gate.test.mjs` | The email gate: validation, identify flow, seven-day identity, refresh and return visits, switch user, collector failures never block |
 | `test/track.test.mjs` | Sessions, idle timeout, active-time accounting, beacons, event validation, the named page events |
 | `collector/test/*.test.mjs` | The collector with the database mocked: validation, identify, track, admin login and pages, report queries, migrations |
+
+For a check in a real browser, serve the folder and drive `index.html` with Playwright or by hand; the suite above deliberately has no browser dependency.
 
 GitHub Actions runs both suites on every push and pull request (`.github/workflows/ci.yml`). The collector suite runs with `npm test --prefix collector` after `npm ci --prefix collector`.
 
@@ -63,6 +68,19 @@ To update the snapshot by hand, edit the `models` array and bump `PUBLISHED_AS_O
 - **Best practical overall**: `capability * 0.78 + value * 0.22`. The value scores of the cheap models (9 to 9.8) make this slot lean toward them. If you want the balanced slot to favour capability more, the lever is the `.78 / .22` blend in `recommend()`; the golden test will show you what moves.
 
 When no signal is detected at all, the page says so above the results and labels the picks as general-purpose defaults.
+
+## How the prompt builder writes a brief
+
+Everything hangs off the Step 1 text. `analyzeJob(text)` produces:
+
+- **Requirements.** The description is split into clauses at sentence ends, ", then", and commas followed by an instruction verb ("find the bug, fix it, run the tests" is three requirements). Lead-ins that talk about the prompt rather than the job ("I want a prompt to...", "write me a prompt that...") are stripped. Bullet or numbered lines are used as-is. A long or already-structured description is quoted whole instead of re-split.
+- **Exclusions.** Clauses containing "no", "not", "without", "never", "avoid" and similar are quoted back under "Explicitly ruled out" so the model does not add them back. "Do not know", "not sure", "no matter" and the like are skipped.
+- **Kind.** Software change, agent workflow, research, analysis, document review, writing or general. A coding job needs two chooser code keywords or one unmistakable software noun (repo, app, api, database...), so a lone "test" in a memo brief does not turn it into engineering work. The kind frames the Role, the "before you begin" list, the default deliverable format and the definition of done.
+- **Playbooks.** The `playbooks` array is the domain knowledge. Each entry has `strong` trigger words (one hit fires it), `weak` words (two hits), an optional `when` guard, and optional `implies` (usage analytics implies a database and an admin view). Code playbooks only fire on coding jobs. A playbook can contribute `goal` bullets, `sections`, `phases`, `tests`, `constraints`, `deliver` items and a `done` sentence. `code_core` is first so its repository-assessment phase leads; the assembler appends a security-review phase when a risky playbook fired and a documentation phase for every coding job.
+
+Trigger matching uses `matchWord()`: words of four letters or fewer must be whole words (so "repo" is not "report" and "form" is not "format"); longer words match word-initially like the chooser's `hasWord()`, so "track" covers "tracking". The chooser's own scoring is untouched.
+
+The Step 2 card shows what was read from the description (kind, requirement and exclusion counts, playbooks fired) so a missing chip is a cue to say more in Step 1. To add domain knowledge, add a playbook; `test/prompt.test.mjs` checks the table is well-formed and that the example job still produces every expected section and phase.
 
 ## Recheck JSON contract
 
@@ -95,6 +113,7 @@ Option A sends the same prompt to the Claude API from the browser with server-si
 ## Security model
 
 - **Escaping.** Every model string that reaches `innerHTML` (name, vendor, description, best-for, tags) passes through `esc()`. Recheck text is untrusted: it comes from an AI reply, and in Option A that reply was shaped by web pages the model read. A patch containing HTML renders as literal text. `test/xss.test.mjs` proves it with the payload from the September 2026 review.
+- **Content Security Policy.** A `<meta http-equiv="Content-Security-Policy">` tag in the head is the second layer behind `esc()`: `default-src 'none'`, inline script and style only, `connect-src` limited to `https://api.anthropic.com`, no images except `data:` URIs, and no `<base>` or form targets. If an escaping slip ever let markup through, it still could not load a script, style or beacon from anywhere. Verified in headless Chromium: the page issues exactly one request to load and one to the Claude API when Recheck Option A runs, and no violation is reported.
 - **Validation.** `cleanPatch()` whitelists fields and clamps ranges; `normalizeChange()` drops unknown models, malformed new-model entries and non-HTTP sources.
 - **API key.** Sent only to `api.anthropic.com`. If you tick "remember", it is kept in `sessionStorage` for the current tab and cleared when the tab closes. It is never written to `localStorage`, and any key an earlier version left there is removed at boot.
 - **Persistence.** Applied Recheck changes live in `localStorage` under `pm_recheck`; plan choices under `pm_plans`; the last Recheck model under `pm_rcmodel`; the sign-in identity (email, collector token, expiry) under `pm_identity`. The current usage session id lives in `sessionStorage` under `pm_sid`. Reset clears `pm_recheck`; Switch user clears `pm_identity` and `pm_sid`.
@@ -143,12 +162,12 @@ Nothing in `users`, `sessions`, `usage_events` or the dashboard changes. The wor
 - The chooser is a keyword heuristic. It reads the words you use, not the job behind them. Vague descriptions get general-purpose defaults.
 - Prices and plan quotas go stale. The snapshot date is in the hero; Recheck exists to move it forward.
 - Option A depends on the web-search tool type and beta header named in `callClaude()`. If Anthropic renames them the call will fail with a 400 that names the field. It has not been exercised against a live key in this repository.
-- Recheck state grows without a cap. Reset clears it.
+- Recheck keeps at most 200 applied changes in `localStorage`; beyond that the oldest are dropped with a console warning. Reset clears it.
 
 ## Repository notes
 
 - `index.html` is committed with LF line endings; Windows checkouts see CRLF through `core.autocrlf`. Editors should preserve whichever they find.
-- `practical-map-prompt-generator.prompt.md` is a task brief for a future feature, kept in the repo root but excluded from git.
 - `collector/` is the companion service (Vercel serverless functions plus Neon Postgres) that receives sign-ins and usage events and serves the admin dashboard. It has its own `package.json`, tests and README. Its only dependency is `@neondatabase/serverless`.
 - `email-gate-usage-tracking.prompt.md` is the task brief the sign-in gate and analytics were built from, kept for reference.
 - `index.html.html` is a stray local copy and is ignored by `.gitignore`. Do not commit it.
+- Some working trees carry a local task brief, `practical-map-prompt-generator.prompt.md`. It is not part of the repository; if you have one, keep it out of git with `.git/info/exclude`, which is per-clone and never pushed.
