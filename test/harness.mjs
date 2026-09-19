@@ -29,6 +29,7 @@ const bodyMarkup = html.slice(bodyStart + "<body>".length, start);
 const EXPORTS = [
   "models", "publishedModels", "PUBLISHED_AS_OF", "patterns", "stakesWords",
   "signal", "needs", "capability", "recommend", "matchSignals", "complexity", "planSubs", "buildPrompt", "hasWord",
+  "analyzeJob", "playbooks", "extractRequirements", "extractExclusions", "jobHints",
   "renderModels", "renderPricing", "renderRec", "exampleCost", "esc", "$",
   "cleanPatch", "normalizeChange", "parseResult", "applyPatch", "applyState", "isoDate", "todayIso", "fmtDate", "tierFor",
   "sameChange", "MAX_APPLIED", "storageWarn",

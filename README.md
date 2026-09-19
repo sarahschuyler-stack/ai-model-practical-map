@@ -7,7 +7,7 @@ Live site: served by GitHub Pages from the `main` branch root.
 ## What the page does
 
 1. **Task chooser.** Describe a job in plain text (or click a preset). The page scores the description for eight task signals and returns three picks: the cheapest model that clears the capability bar, the most capable model regardless of price, and the best practical balance of capability and cost.
-2. **Prompt builder.** Up to ten short questions turn the job into a structured prompt (Role, Task, Deliverable, Constraints, Approach, Verification, Output) tuned to the chosen model. It also tells you which ChatGPT or Claude subscription tier fits the job and when an upgrade would pay off.
+2. **Prompt builder.** The Step 1 description is the raw material. The builder splits it into numbered requirements and explicit exclusions, works out what kind of job it is (software change, research, document review, decision analysis, agent workflow, writing) and fires the domain playbooks it mentions (an email gate, usage analytics, payments, a market scan, a decision memo...). Each playbook contributes goal bullets, requirement sections, implementation phases, tests and final-deliverable items, and the result is a full brief tuned to the chosen model. Up to ten short questions layer detail on top; skipping them all still produces a complete brief. It also tells you which ChatGPT or Claude subscription tier fits the job and when an upgrade would pay off.
 3. **Recheck.** Ask an AI to search the web for price, capability and availability changes since the snapshot date, review the findings one by one, and apply the ones you trust. Applied changes are stored in your browser and replayed on top of the published snapshot every load. Reset returns to the published snapshot.
 
 Everything runs in the browser. There is no server, no build step and no runtime dependency.
@@ -35,6 +35,7 @@ Requires Node 22 or newer and nothing else. `test/harness.mjs` extracts the inli
 | `test/smoke.test.mjs` | The script boots and renders the snapshot; all presets produce picks |
 | `test/xss.test.mjs` | Recheck-sourced text renders escaped in cards, pricing table and results |
 | `test/chooser.test.mjs` | Word-boundary keyword matching, literal matching of regex characters, shared stakes signal, golden preset picks, no-signal notice |
+| `test/prompt.test.mjs` | The email-gate example produces the full brief; wizard answers layer in; requirement and exclusion extraction; kind detection per preset; non-code framing; every preset for every target; the Step 2 strip |
 | `test/ui.test.mjs` | The interactive layer: presets, plan buttons, ladder rungs, target chips, every wizard control, Copy prompt, Recheck checkboxes, Select all / none, Apply |
 | `test/recheck.test.mjs` | JSON parsing (fenced, prose-wrapped, truncated, hostile), patch validation, apply/reset loop, duplicate detection, the 200-entry cap, `callClaude` with a mocked API including the continuation budget |
 | `test/storage.test.mjs` | Blocked or unreadable browser storage: the page keeps working, warns once per cause in the console, and shows one notice |
@@ -64,6 +65,19 @@ To update the snapshot by hand, edit the `models` array and bump `PUBLISHED_AS_O
 - **Best practical overall**: `capability * 0.78 + value * 0.22`. The value scores of the cheap models (9 to 9.8) make this slot lean toward them. If you want the balanced slot to favour capability more, the lever is the `.78 / .22` blend in `recommend()`; the golden test will show you what moves.
 
 When no signal is detected at all, the page says so above the results and labels the picks as general-purpose defaults.
+
+## How the prompt builder writes a brief
+
+Everything hangs off the Step 1 text. `analyzeJob(text)` produces:
+
+- **Requirements.** The description is split into clauses at sentence ends, ", then", and commas followed by an instruction verb ("find the bug, fix it, run the tests" is three requirements). Lead-ins that talk about the prompt rather than the job ("I want a prompt to...", "write me a prompt that...") are stripped. Bullet or numbered lines are used as-is. A long or already-structured description is quoted whole instead of re-split.
+- **Exclusions.** Clauses containing "no", "not", "without", "never", "avoid" and similar are quoted back under "Explicitly ruled out" so the model does not add them back. "Do not know", "not sure", "no matter" and the like are skipped.
+- **Kind.** Software change, agent workflow, research, analysis, document review, writing or general. A coding job needs two chooser code keywords or one unmistakable software noun (repo, app, api, database...), so a lone "test" in a memo brief does not turn it into engineering work. The kind frames the Role, the "before you begin" list, the default deliverable format and the definition of done.
+- **Playbooks.** The `playbooks` array is the domain knowledge. Each entry has `strong` trigger words (one hit fires it), `weak` words (two hits), an optional `when` guard, and optional `implies` (usage analytics implies a database and an admin view). Code playbooks only fire on coding jobs. A playbook can contribute `goal` bullets, `sections`, `phases`, `tests`, `constraints`, `deliver` items and a `done` sentence. `code_core` is first so its repository-assessment phase leads; the assembler appends a security-review phase when a risky playbook fired and a documentation phase for every coding job.
+
+Trigger matching uses `matchWord()`: words of four letters or fewer must be whole words (so "repo" is not "report" and "form" is not "format"); longer words match word-initially like the chooser's `hasWord()`, so "track" covers "tracking". The chooser's own scoring is untouched.
+
+The Step 2 card shows what was read from the description (kind, requirement and exclusion counts, playbooks fired) so a missing chip is a cue to say more in Step 1. To add domain knowledge, add a playbook; `test/prompt.test.mjs` checks the table is well-formed and that the example job still produces every expected section and phase.
 
 ## Recheck JSON contract
 

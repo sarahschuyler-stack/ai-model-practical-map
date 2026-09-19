@@ -71,8 +71,9 @@ test("the wizard records choices and text, steps back and forth, and produces a 
   assert.equal(q.el("wizard").style.display, "none");
   const out = q.el("promptOut").value;
   assert.match(out, /^# Role/);
-  assert.match(out, /# Task\n.*intermittent accounting bug/);
-  assert.match(out, /A finished result looks like this: a merged fix/);
+  assert.match(out, /# Goal\nThe job, in the requester's words:\n> .*intermittent accounting bug/);
+  assert.match(out, /Format: Code changes with explanation\./);
+  assert.match(out, /Definition of done: a merged fix with passing tests/);
   assert.match(q.el("outTitle").textContent, /Prompt for .* · Best practical overall/);
 });
 
