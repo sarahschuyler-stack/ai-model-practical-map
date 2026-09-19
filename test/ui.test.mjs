@@ -50,7 +50,10 @@ test("ladder rungs and target chips retarget the prompt", () => {
   chip.click();
   assert.equal(q.pb.target, "premium");
   assert.ok(chip.className.includes("target"));
-  assert.match(q.el("wizard").innerHTML, /Prompt for GPT-6 Astra/);
+  // "Best regardless of price" for a routine, spec-following build is now Claude Sonnet 5, not GPT-6 Astra: the capability
+  // score reflects the job's axes (discipline 8.8, code 4.4), and Sonnet leads discipline 9.8 to Astra's 9.0. The chip still
+  // retargets — the prompt above this line was addressed to Claude Opus 5.
+  assert.match(q.el("wizard").innerHTML, /Prompt for Claude Sonnet 5/);
 });
 
 test("the wizard records choices and text, steps back and forth, and produces a prompt", () => {
