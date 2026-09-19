@@ -29,6 +29,20 @@ test("an unknown sort falls back to most recent", async () => {
   assert.match(db.last().text, /order by u\.last_seen_at desc/);
 });
 
+test("an inherited property name is not a sort", async () => {
+  for (const sort of ["constructor", "toString", "hasOwnProperty", "__proto__", "valueOf", "nonsense"]) {
+    const db = fakeDb();
+    await Q.users(db, { sort });
+    const { text } = db.last();
+    assert.match(text, /order by u\.last_seen_at desc limit \$2 offset \$3/, `sort=${sort} must fall back: ` + text);
+    assert.ok(!/\[native code\]/.test(text), `sort=${sort} interpolated a function into the SQL: ` + text);
+    assert.ok(!/\[object Object\]/.test(text), `sort=${sort} interpolated an object into the SQL: ` + text);
+    assert.equal(Q.orderClause(sort), "u.last_seen_at desc");
+  }
+  assert.equal(Q.orderClause(undefined), "u.last_seen_at desc");
+  assert.equal(Q.orderClause("usage"), "u.total_active_seconds desc, u.last_seen_at desc");
+});
+
 test("feature rankings exclude automatic events", async () => {
   const db = fakeDb();
   await Q.features(db, range);
@@ -42,7 +56,7 @@ test("migrations run once each, in order, and are recorded", async () => {
     if (/insert into schema_migrations/.test(t)) applied.push(p[0]);
   });
   const first = await applyMigrations(db);
-  assert.deepEqual(first, ["0001_init.sql"]);
+  assert.deepEqual(first, ["0001_init.sql", "0002_admin_login_failures.sql"]);
   const n = db.calls.length;
   const second = await applyMigrations(db);
   assert.deepEqual(second, []);

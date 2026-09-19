@@ -8,7 +8,7 @@ The small service behind the sign-in gate on `index.html`. It creates users, iss
 2. **Attach a database.** In the project, open the *Storage* tab, *Create Database*, choose *Neon* (Postgres), accept the free plan and connect it to the project. This adds `DATABASE_URL` to the project's environment variables for you.
 3. **Set two variables.** *Settings → Environment Variables*, add:
    - `ADMIN_EMAILS` = your email address (several, comma-separated, are fine).
-   - `ADMIN_KEY` = a password you invent, at least 8 characters. Write it down somewhere safe. If you ever lose it, change it here; nothing else depends on it.
+   - `ADMIN_KEY` = a password you invent, at least 16 characters — a long random phrase, since it also seeds the cookie-signing secret. Write it down somewhere safe. If you ever lose it, change it here; nothing else depends on it.
 4. **Redeploy** so the variables take effect: *Deployments → ⋯ on the latest → Redeploy*.
 5. **Log in once.** Open `https://<your-project>.vercel.app/admin/login`, enter your email and the key. The first successful login creates the database tables. You will land on an empty dashboard.
 6. **Point the page at it.** In `index.html`, near the top of the script, change `const COLLECTOR_URL = "";` to your Vercel URL, for example `const COLLECTOR_URL = "https://practical-map-collector.vercel.app";` (no trailing slash), commit, and push to `main`. GitHub Pages redeploys in a minute or two.
@@ -22,14 +22,14 @@ Optional: `ALLOWED_ORIGIN` defaults to `https://sarahschuyler-stack.github.io`. 
 |---|---|---|
 | `DATABASE_URL` | Added by the Neon integration | Postgres connection string |
 | `ADMIN_EMAILS` | You | Who may log in to `/admin/usage` |
-| `ADMIN_KEY` | You | The admin password; also derives the cookie-signing secret |
+| `ADMIN_KEY` | You | The admin password (16 characters or more); also derives the cookie-signing secret |
 | `ALLOWED_ORIGIN` | Optional | Browser origins allowed to call the write endpoints |
 
 ## Endpoints
 
 - `POST /api/identify` `{v:1, email}` → `{token, exp}`. Upserts the user on the normalised email, issues a 7-day identity token, stores only its SHA-256. 20 per email per hour.
 - `POST /api/track` one JSON envelope: `start`, `beat`, `end` or `event`. The user comes from the token. Replies 204 with no body, or 400/401/403/405/429/500 with a short reason.
-- `GET /admin/login`, `POST /admin/login`, `POST /admin/logout`: admin session (signed HttpOnly cookie, 12 hours). A successful login applies pending migrations.
+- `GET /admin/login`, `POST /admin/login`, `POST /admin/logout`: admin session (signed HttpOnly cookie, 12 hours). A successful login applies pending migrations. Failed logins are counted per source in Postgres: 8 failures within 15 minutes and that source gets a 429 with `Retry-After` until the window rolls, without the key being checked at all. A correct login clears the count.
 - `GET /admin/usage`: overview, charts, users table (`?sort=recent|sessions|usage|newest&q=&from=&to=&tz=`), recent activity.
 - `GET /admin/usage/user?email=`: one person; `POST` with `action=delete&confirm=yes` removes them and all their data.
 - `GET /admin/usage/export.csv`: the users table as CSV.
@@ -60,7 +60,7 @@ To exercise the page against it, set `COLLECTOR_URL` to `http://localhost:3000` 
 
 ## Privacy
 
-Stored: email, timestamps, active seconds, page views, referrer, landing path, coarse browser family (`Chrome/Windows`), event names and small metadata. Not stored: IP addresses, raw user agents, the task text, prompt answers, API keys, anything typed on the page. No third-party analytics. To remove one person, open their detail page and use the Delete button, or run `delete from users where normalized_email = 'name@example.com'`, which cascades to their tokens, sessions and events.
+Stored: email, timestamps, active seconds, page views, referrer, landing path, coarse browser family (`Chrome/Windows`), event names and small metadata. Failed admin logins store an HMAC of the caller's IP — keyed by the admin session secret, so it counts attempts per address without keeping the address — and those rows are deleted about an hour after they are recorded. Not stored: IP addresses, raw user agents, the task text, prompt answers, API keys, anything typed on the page. No third-party analytics. To remove one person, open their detail page and use the Delete button, or run `delete from users where normalized_email = 'name@example.com'`, which cascades to their tokens, sessions and events.
 
 ## How session duration is calculated
 

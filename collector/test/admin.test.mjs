@@ -5,7 +5,8 @@ import { req, res, fakeDb } from "./helpers.mjs";
 process.env.ADMIN_EMAILS = "Sarah@Example.com, second@example.com";
 process.env.ADMIN_KEY = "correct-horse-battery";
 
-const { config, sign, verify, checkLogin, COOKIE } = await import("../lib/admin.js");
+const { config, sign, verify, checkLogin, safeEqual, COOKIE, MIN_KEY_LENGTH } = await import("../lib/admin.js");
+const { MAX_FAILURES, sourceKey, checkThrottle, recordFailure } = await import("../lib/throttle.js");
 const login = await import("../api/admin/login.js");
 const usage = await import("../api/admin/usage.js");
 const user = await import("../api/admin/user.js");
@@ -47,7 +48,9 @@ test("checkLogin needs a listed email and the exact key; unconfigured is refused
   assert.equal(checkLogin("sarah@example.com", "wrong").ok, false);
   assert.equal(checkLogin("stranger@example.com", "correct-horse-battery").ok, false, "typing an admin email into the gate is not enough");
   assert.equal(checkLogin("sarah@example.com", "correct-horse-battery", config({})).reason, "not-configured");
-  assert.equal(config({ ADMIN_EMAILS: "a@b.co", ADMIN_KEY: "short" }).ready, false, "keys under eight characters are not accepted");
+  assert.equal(config({ ADMIN_EMAILS: "a@b.co", ADMIN_KEY: "short" }).ready, false, "keys under the minimum length are not accepted");
+  assert.equal(config({ ADMIN_EMAILS: "a@b.co", ADMIN_KEY: "a".repeat(MIN_KEY_LENGTH - 1) }).ready, false, "one character short is still short");
+  assert.equal(config({ ADMIN_EMAILS: "a@b.co", ADMIN_KEY: "a".repeat(MIN_KEY_LENGTH) }).ready, true);
 });
 
 test("13. a correct login sets an HttpOnly cookie and applies the migrations", async () => {
@@ -72,7 +75,7 @@ test("14. a wrong key or an unlisted email is refused, and the gate token is wor
   r = res();
   await login.makeHandler(db)(req({ method: "POST", url: "/admin/login", form: { email: "visitor@example.com", admin_key: "correct-horse-battery" } }), r);
   assert.equal(r.statusCode, 401);
-  assert.equal(db.calls.length, 0, "no migration on a failed login");
+  assert.equal(db.find(/create table if not exists users/), undefined, "no migration on a failed login");
   for (const h of [usage.makeHandler(reportDb()), user.makeHandler(reportDb()), exp.makeHandler(reportDb())]) {
     r = res();
     await h(req({ method: "GET", url: "/admin/usage?email=a@b.co", cookie: `${COOKIE}=${"a".repeat(43)}` }), r);
@@ -172,6 +175,94 @@ test("the CSV export needs the cookie and neutralises spreadsheet formulas", asy
   assert.equal(exp.cell("plain"), "plain");
   assert.equal(exp.cell("a,b"), '"a,b"');
   assert.equal(db.find(/^select u\.email/).params[1], 5000);
+});
+
+/** A database that remembers admin_login_failures rows per source, as Postgres would. */
+function throttleDb() {
+  const rows = [];
+  const db = fakeDb((t, p) => {
+    if (/^insert into admin_login_failures/.test(t)) { rows.push(String(p[0])); return []; }
+    if (/^delete from admin_login_failures where source_hash/.test(t)) {
+      for (let i = rows.length - 1; i >= 0; i--) if (rows[i] === String(p[0])) rows.splice(i, 1);
+      return [];
+    }
+    if (/^delete from admin_login_failures where created_at/.test(t)) return [];
+    if (/admin_login_failures/.test(t) && /^select count/.test(t)) {
+      return [{ n: rows.filter(s => s === String(p[0])).length, retry_after: 540 }];
+    }
+    if (/select name from schema_migrations/.test(t)) return [];
+    return undefined;
+  });
+  db.rows = rows;
+  return db;
+}
+
+const from = ip => ({ method: "POST", url: "/admin/login", headers: { "x-forwarded-for": ip + ", 10.0.0.1" } });
+
+test("failed admin logins are throttled per source, not merely delayed", async () => {
+  const db = throttleDb();
+  const bad = { email: "sarah@example.com", admin_key: "guess" };
+  for (let i = 0; i < MAX_FAILURES; i++) {
+    const r = res();
+    await login.makeHandler(db)(req({ ...from("203.0.113.7"), form: bad }), r);
+    assert.equal(r.statusCode, 401, `attempt ${i + 1} should still be a plain refusal`);
+  }
+  assert.equal(db.rows.length, MAX_FAILURES, "every failure is recorded in the database");
+
+  let r = res();
+  await login.makeHandler(db)(req({ ...from("203.0.113.7"), form: bad }), r);
+  assert.equal(r.statusCode, 429, "the source is locked out once the window is full");
+  assert.equal(r.getHeader("retry-after"), "540");
+  assert.match(r.body, /Too many failed logins/);
+  assert.match(r.body, /9 minutes/);
+
+  r = res();
+  await login.makeHandler(db)(req({ ...from("203.0.113.7"), form: { email: "sarah@example.com", admin_key: "correct-horse-battery" } }), r);
+  assert.equal(r.statusCode, 429, "a blocked source does not get its key checked at all");
+  assert.equal(r.getHeader("set-cookie"), undefined);
+
+  r = res();
+  await login.makeHandler(db)(req({ ...from("198.51.100.4"), form: bad }), r);
+  assert.equal(r.statusCode, 401, "another source is counted on its own");
+});
+
+test("a correct login clears that source's failures", async () => {
+  const db = throttleDb();
+  let r = res();
+  await login.makeHandler(db)(req({ ...from("203.0.113.9"), form: { email: "sarah@example.com", admin_key: "wrong" } }), r);
+  assert.equal(r.statusCode, 401);
+  assert.equal(db.rows.length, 1);
+  r = res();
+  await login.makeHandler(db)(req({ ...from("203.0.113.9"), form: { email: "sarah@example.com", admin_key: "correct-horse-battery" } }), r);
+  assert.equal(r.statusCode, 302);
+  assert.equal(db.rows.length, 0, "the count starts again after a correct key");
+});
+
+test("the throttle creates its table if a deployment is guessed at before its first login", async () => {
+  let exists = false;
+  const db = fakeDb(t => {
+    if (/admin_login_failures/.test(t) && /^(select|insert|delete)/.test(t) && !exists) {
+      const e = new Error('relation "admin_login_failures" does not exist');
+      e.code = "42P01";
+      throw e;
+    }
+    if (/^create table if not exists admin_login_failures/.test(t)) { exists = true; return []; }
+    return undefined;
+  });
+  const source = sourceKey(req(from("203.0.113.1")), config());
+  const gate = await checkThrottle(db, source);
+  assert.equal(gate.blocked, false);
+  assert.ok(db.find(/^create table if not exists admin_login_failures/), "the table is created rather than failing open");
+  await recordFailure(db, source);
+  assert.ok(db.find(/^insert into admin_login_failures/));
+});
+
+test("safeEqual is constant-time in the length of the secret too", () => {
+  assert.equal(safeEqual("abc", "abc"), true);
+  assert.equal(safeEqual("abc", "abd"), false);
+  assert.equal(safeEqual("abc", "abcdefghijklmnop"), false, "a length mismatch is a mismatch, not a throw");
+  assert.equal(safeEqual("", ""), true);
+  assert.equal(safeEqual("abc", ""), false);
 });
 
 test("logout clears the cookie", async () => {

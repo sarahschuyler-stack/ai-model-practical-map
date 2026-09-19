@@ -4,13 +4,24 @@
 /** Automatic events that should not count as "features used". */
 const AUTO = "('page_view','route_changed','application_opened','nav_clicked')";
 
-const ORDER = {
+// A null-prototype object, so `ORDER[sort]` cannot inherit anything: with a plain
+// object literal, sort="constructor" or "toString" hands back a function and
+// sort="__proto__" an object, and a `||` guard waves all three through as truthy.
+// They would then be interpolated straight into `order by ...`. No caller can reach
+// that today, but the guarantee belongs here, next to the interpolation.
+const ORDER = Object.assign(Object.create(null), {
   recent: "u.last_seen_at desc",
   sessions: "u.total_sessions desc, u.last_seen_at desc",
   usage: "u.total_active_seconds desc, u.last_seen_at desc",
   newest: "u.first_seen_at desc",
-};
+});
 export const SORTS = Object.keys(ORDER);
+
+/** The order-by clause for a sort name, always one of ORDER's own values. */
+export function orderClause(sort) {
+  const clause = typeof sort === "string" ? ORDER[sort] : undefined;
+  return typeof clause === "string" ? clause : ORDER.recent;
+}
 
 const bounds = (from, to, tz) => [`($1::date::timestamp at time zone $3)`, `($2::date::timestamp at time zone $3)`, [from, to, tz]];
 const escLike = s => String(s).replace(/[\\%_]/g, c => "\\" + c);
@@ -53,7 +64,7 @@ export async function features(db, { from, to, tz }, userId = null) {
 }
 
 export async function users(db, { sort = "recent", q = "", limit = 50, offset = 0 }) {
-  const order = ORDER[sort] || ORDER.recent;
+  const order = orderClause(sort);
   const like = q ? "%" + escLike(q.toLowerCase()) + "%" : "";
   return db.q(`select u.email, u.normalized_email, u.first_seen_at, u.last_seen_at, u.total_sessions, u.total_active_seconds,
       case when u.total_sessions > 0 then u.total_active_seconds / u.total_sessions else 0 end as avg_session,
