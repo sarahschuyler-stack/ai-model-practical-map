@@ -1,0 +1,15 @@
+{
+  "name": "practical-map-collector",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Receives sign-ins and usage events from the Practical Map page and serves the admin usage dashboard.",
+  "type": "module",
+  "scripts": {
+    "test": "node --test \"test/**/*.test.mjs\"",
+    "migrate": "node scripts/migrate.mjs"
+  },
+  "engines": { "node": "22.x" },
+  "dependencies": {
+    "@neondatabase/serverless": "^1.0.1"
+  }
+}

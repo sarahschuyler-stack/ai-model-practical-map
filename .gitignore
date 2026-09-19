@@ -4,3 +4,8 @@ coverage/
 Thumbs.db
 # stray local copies of the page (an index.html.html sits in some working trees)
 *.html.html
+# secrets for the collector live in Vercel, never in git (collector/.env.example is the template)
+.env
+.env.*
+!.env.example
+.vercel/

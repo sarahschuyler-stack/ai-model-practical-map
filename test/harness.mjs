@@ -1,6 +1,7 @@
 // Loads the inline script from index.html into a stub DOM so the pure logic
-// (chooser, prompt builder, Recheck parsing and rendering) can be exercised
-// under `node --test` without a browser. Nothing here is served to users.
+// (chooser, prompt builder, Recheck parsing and rendering, sign-in gate and
+// usage tracker) can be exercised under `node --test` without a browser.
+// Nothing here is served to users.
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
@@ -20,6 +21,7 @@ const EXPORTS = [
   "renderModels", "renderPricing", "renderRec", "exampleCost", "esc", "$",
   "cleanPatch", "normalizeChange", "parseResult", "applyPatch", "applyState", "isoDate", "todayIso", "fmtDate", "tierFor",
   "callClaude", "recheckPrompt", "rc", "pb",
+  "gate", "track", "trackEvent", "COLLECTOR_URL", "TRACK_BEAT_MS", "TRACK_IDLE_MS", "IDENTITY_DAYS",
 ];
 
 function makeElement(id) {
@@ -35,6 +37,7 @@ function makeElement(id) {
     },
     focus() {}, blur() {}, select() {}, setSelectionRange() {}, scrollIntoView() {}, remove() {},
     querySelectorAll() { return []; }, querySelector() { return null; }, closest() { return null; },
+    getAttribute() { return null; },
     addEventListener(t, f) { listeners[t] = f; }, appendChild() {},
   };
   return el;
@@ -45,35 +48,52 @@ const memStorage = () => {
   return { getItem: k => (m.has(k) ? m.get(k) : null), setItem: (k, v) => m.set(k, String(v)), removeItem: k => m.delete(k), _m: m };
 };
 
+/** Records listeners so tests can fire them: target.fire("visibilitychange"). */
+function listenable(target) {
+  target._listeners = {};
+  target.addEventListener = (t, f) => { (target._listeners[t] ||= []).push(f); };
+  target.fire = (t, ev) => { for (const f of target._listeners[t] || []) f(ev || {}); };
+  return target;
+}
+
 /**
  * Evaluate the page script against stubs.
- * @param {{fetch?: Function, storage?: {local?: object, session?: object}}} opts
+ * @param {{fetch?: Function, storage?: {local?: object, session?: object}, collectorUrl?: string}} opts
+ *   collectorUrl replaces the empty COLLECTOR_URL constant in the script so the tracker actually sends.
  */
-export function load({ fetch: fetchImpl, storage } = {}) {
+export function load({ fetch: fetchImpl, storage, collectorUrl } = {}) {
   const elements = new Map();
-  const document = {
+  const document = listenable({
     title: "",
-    body: { appendChild() {} },
+    body: makeElement("body"),
+    visibilityState: "visible",
+    referrer: "",
     getElementById(id) { if (!elements.has(id)) elements.set(id, makeElement(id)); return elements.get(id); },
     querySelectorAll() { return []; },
     createElement(tag) { return makeElement("<" + tag + ">"); },
     execCommand() { return true; },
-  };
+  });
   const localStorage = (storage && storage.local) || memStorage();
   const sessionStorage = (storage && storage.session) || memStorage();
-  const navigator = { clipboard: { writeText: async () => {} } };
+  const navigator = { clipboard: { writeText: async () => {} }, _beacons: [], sendBeacon(url, blob) { navigator._beacons.push({ url, blob }); return true; } };
   const fetch = fetchImpl || (async () => { throw new Error("fetch is not available in tests; pass a mock"); });
-  const window = { location: { reload() {} } };
+  const window = listenable({ location: { reload() {}, pathname: "/ai-model-practical-map/", hash: "" } });
   const logs = [];
   const consoleStub = {
     log: (...a) => logs.push(["log", ...a]), info: (...a) => logs.push(["info", ...a]),
     warn: (...a) => logs.push(["warn", ...a]), error: (...a) => logs.push(["error", ...a]),
   };
 
+  let src = source;
+  if (collectorUrl) {
+    const needle = 'const COLLECTOR_URL = "";';
+    if (!src.includes(needle)) throw new Error("COLLECTOR_URL constant not found in index.html");
+    src = src.replace(needle, `const COLLECTOR_URL = ${JSON.stringify(collectorUrl)};`);
+  }
   const fn = new Function("document", "localStorage", "sessionStorage", "navigator", "fetch", "window", "console",
-    source + "\nreturn {" + EXPORTS.map(n => `${n}: typeof ${n} === "undefined" ? undefined : ${n}`).join(",") + "};");
+    src + "\nreturn {" + EXPORTS.map(n => `${n}: typeof ${n} === "undefined" ? undefined : ${n}`).join(",") + "};");
   const api = fn(document, localStorage, sessionStorage, navigator, fetch, window, consoleStub);
-  return { ...api, document, localStorage, sessionStorage, logs, el: id => document.getElementById(id) };
+  return { ...api, document, window, navigator, localStorage, sessionStorage, logs, el: id => document.getElementById(id) };
 }
 
 /** The six presets exactly as the page ships them (data-preset attributes). */

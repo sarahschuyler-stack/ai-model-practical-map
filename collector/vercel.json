@@ -1,0 +1,11 @@
+{
+  "rewrites": [
+    { "source": "/", "destination": "/api/admin/usage" },
+    { "source": "/admin", "destination": "/api/admin/usage" },
+    { "source": "/admin/login", "destination": "/api/admin/login" },
+    { "source": "/admin/logout", "destination": "/api/admin/logout" },
+    { "source": "/admin/usage", "destination": "/api/admin/usage" },
+    { "source": "/admin/usage/user", "destination": "/api/admin/user" },
+    { "source": "/admin/usage/export.csv", "destination": "/api/admin/export" }
+  ]
+}

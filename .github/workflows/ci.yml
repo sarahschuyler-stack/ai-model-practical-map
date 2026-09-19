@@ -12,3 +12,5 @@ jobs:
         with:
           node-version: 22
       - run: npm test
+      - run: npm ci --prefix collector
+      - run: npm test --prefix collector
