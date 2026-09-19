@@ -1,7 +1,7 @@
 # Prompt: email access gate and usage analytics for the Practical Map
 
 Paste everything below the line into a coding agent that has this repository checked out.
-Fill the `<< >>` placeholders first.
+Fill the one remaining `<< >>` placeholder (`ADMIN_EMAILS`) first.
 
 Read this before you paste it:
 
@@ -16,7 +16,7 @@ Read this before you paste it:
 You are a senior full-stack engineer working inside an existing public web application repository (`ai-model-practical-map`). Your task is to add a lightweight email access gate and a first-party usage analytics system without materially changing the existing UI or functionality. Follow this specification closely. Do not expand scope, redesign the page, or restyle anything not named here. Reuse the existing stack wherever practical and do not rebuild functioning parts of the application. Flag gaps in the spec in your final message instead of guessing. Do not stop to ask questions unless something truly cannot be safely determined from the repository.
 
 # Parameters
-- `PAGES_ORIGIN` = `<< https://sarahschuyler-stack.github.io >>` (origin of the live page, no path)
+- `PAGES_ORIGIN` = `https://sarahschuyler-stack.github.io` (the live page is `https://sarahschuyler-stack.github.io/ai-model-practical-map/`; CORS matches the origin only, no path)
 - `ADMIN_EMAILS` = `<< you@example.com >>` (comma-separated; set on Vercel, never committed)
 - Feature branch: `feat/email-gate-usage-analytics`. Make all changes there.
 
@@ -38,7 +38,7 @@ You are a senior full-stack engineer working inside an existing public web appli
 - Users, sessions, events, identity tokens, admin dashboard: a new `collector/` folder, a Vercel project with Root Directory `collector`, Node 22 serverless functions under `collector/api/`, Neon Postgres attached from the Vercel Marketplace (it injects `DATABASE_URL`). Only `@neondatabase/serverless` as a dependency. No Supabase and no auth platform: nothing in the repository argues for either, and the page must stay a static file.
 
 # Goal
-Visitors must enter an email address before using the page. No password, no account creation, no username, no elaborate login screen: one field and a Continue button. After entering it they are let in and stay recognised on future visits for about 30 days. The purpose is usage tracking, not security. An admin view shows who accessed the app, first and last access, visits, sessions, active time, which features they used, and overall usage.
+Anyone who opens `https://sarahschuyler-stack.github.io/ai-model-practical-map/` must enter an email address before using the page. No password, no account creation, no username, no elaborate login screen: one field and a Continue button. After entering it they are let in and stay recognised on future visits for about 30 days. The purpose is usage tracking, not security. An admin view shows who accessed the app, first and last access, visits, sessions, active time, which features they used, and overall usage.
 
 # Security distinction, and the upgrade path you must preserve
 Email without verification is not authentication. Build the identity layer so that verification can be added later without changing users, sessions, events or the dashboard:
@@ -244,5 +244,5 @@ Implement it in the repository on the feature branch and then report: files adde
 
 1. **Two origins or one?** This prompt keeps GitHub Pages for the page and Vercel for the collector and dashboard, with identity as a token in the request body because cross-site cookies are blocked in Safari. The alternative is to host the whole site on Vercel (static `index.html` plus `api/`), which makes everything same-origin so the visitor identity can be an HttpOnly cookie and the `/admin/usage` URL sits beside the page. It is a cleaner security story at the cost of moving hosting. Say which and the agent can adjust Phases 2 and 3.
 2. **Consent and retention.** If any visitors are in the EU or UK, an email tied to activity is personal data. A consent checkbox on the gate and a "delete sessions older than N days" job are each a few lines and are left out here so you can decide.
-3. **Gate the whole page or only the tools?** This prompt gates everything, as "required login" implies. Gating only the chooser and prompt builder would leave the map and pricing public and still capture nearly all meaningful usage.
+3. **Gate scope: decided.** The whole page is gated. Anyone who opens the URL sees the email prompt before anything else.
 4. **Admin without the key.** Until magic-link verification exists, the dashboard needs `ADMIN_KEY` as well as a listed email, because anyone can type your email into the gate. Once you enable verification, the key can be retired.
