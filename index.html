@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1"/>
 <!-- Second layer behind esc(): even if an escaping slip let markup through, no external script, style, image or connection can
      load, and the only network destination the page may open is the Claude API used by Recheck Option A. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; connect-src https://api.anthropic.com; img-src data:; base-uri 'none'; form-action 'none'"/>
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; connect-src https://api.anthropic.com https://*.vercel.app; img-src data:; base-uri 'none'; form-action 'none'"/>
 <title>AI Model Practical Map — September 2026</title>
 <style>
 :root{
@@ -169,6 +169,17 @@ button.ghost{background:transparent;border:1px solid var(--line);color:#b8cae0}
 .rcacts{display:flex;gap:8px;flex-wrap:wrap;justify-content:space-between;margin-top:14px}
 .rcacts div{display:flex;gap:8px;flex-wrap:wrap}
 .rcnotes li{margin:8px 0;color:#aebfd2;font-size:12px;line-height:1.4}
+/* ---------- Sign-in gate ---------- */
+#gate{position:fixed;inset:0;z-index:50;display:none;place-items:center;padding:16px;background:rgba(7,17,31,.92);backdrop-filter:blur(10px)}
+#gate .card{width:100%;max-width:440px;padding:26px}
+#gate h2{font-size:24px;margin:8px 0 14px;letter-spacing:-.03em}
+#gate form{display:flex;gap:8px;flex-wrap:wrap}
+#gate input{flex:1;min-width:180px;background:#071522;border:1px solid #2a4565;border-radius:10px;color:white;padding:11px 12px;font:inherit;font-size:15px;outline:none}
+#gate input:focus{border-color:var(--cyan);box-shadow:0 0 0 3px rgba(103,232,249,.08)}
+.gateErr{color:var(--red);font-size:12px;min-height:16px;margin-top:8px}
+.gatenote{color:var(--muted);font-size:12px;line-height:1.5;margin:10px 0 0}
+body.gated{overflow:hidden}
+body.gated .wrap{filter:blur(4px);pointer-events:none;user-select:none}
 @media(max-width:900px){.rcmodes{grid-template-columns:1fr}}
 @media(max-width:900px){.subs{grid-template-columns:1fr}}
 @media(max-width:900px){.hero{grid-template-columns:1fr}.stamp{justify-self:start;text-align:left}.stamp .stampacts{justify-content:flex-start}.kpis{grid-template-columns:repeat(2,1fr)}.models{grid-template-columns:1fr}.results{grid-template-columns:1fr}.methodgrid{grid-template-columns:repeat(2,1fr)}.flow{grid-template-columns:1fr}.arrow{transform:rotate(90deg);text-align:center}}
@@ -176,6 +187,18 @@ button.ghost{background:transparent;border:1px solid var(--line);color:#b8cae0}
 </style>
 </head>
 <body>
+<div id="gate" role="dialog" aria-modal="true" aria-labelledby="gateTitle">
+  <div class="card">
+    <div class="eyebrow">Welcome</div>
+    <h2 id="gateTitle">Enter your email to continue.</h2>
+    <form id="gateForm" novalidate>
+      <input type="email" id="gateEmail" autocomplete="email" required placeholder="Email address" spellcheck="false"/>
+      <button class="primary" type="submit" id="gateGo">Continue</button>
+    </form>
+    <div class="gateErr" id="gateErr" aria-live="polite"></div>
+    <p class="gatenote">Your email is used to identify your session and understand how this application is being used. No password, no verification email.</p>
+  </div>
+</div>
 <div class="wrap">
 <section class="hero">
   <div>
@@ -183,7 +206,7 @@ button.ghost{background:transparent;border:1px solid var(--line);color:#b8cae0}
     <h1>The AI Model<br/>Practical Map</h1>
   </div>
   <div class="stamp"><strong id="viewDate">Current view: September 16, 2026</strong>API pricing is volatile. Verify before production budgeting.
-    <div class="stampacts"><span class="stamped" id="stamped"></span><button class="ghost" id="recheck" title="Search for the latest pricing, capability and functionality changes">Recheck</button></div>
+    <div class="stampacts"><span class="stamped" id="stamped"></span><button class="ghost" id="recheck" title="Search for the latest pricing, capability and functionality changes">Recheck</button><button class="ghost" id="signOut" title="Forget this email on this device">Switch user</button></div>
   </div>
 </section>
 
@@ -227,7 +250,7 @@ button.ghost{background:transparent;border:1px solid var(--line);color:#b8cae0}
 
 <section class="section" id="chooser">
 <h2>Describe the job. Get three model choices.</h2>
-<p class="intro">This runs entirely in your browser. It uses task signals plus the practical scores below—no API key, no server, and no hidden model call.</p>
+<p class="intro">This runs entirely in your browser. It uses task signals plus the practical scores below—no API key and no hidden model call. The only thing sent anywhere is the usage record described at sign-in.</p>
 <div class="card builder">
 <div class="rank" style="margin-bottom:10px">Step 1 · Describe the job</div>
 <textarea id="task" placeholder="Example: I have a 600-file accounting application repo. Find why the reconciliation engine occasionally double-posts, inspect the architecture, fix the bug, run tests, and challenge whether our current design is the right one."></textarea>
@@ -380,6 +403,13 @@ const models = [
 const PUBLISHED_AS_OF="2026-09-16";
 const publishedModels=JSON.parse(JSON.stringify(models));
 const $=id=>document.getElementById(id);
+/* Usage analytics. COLLECTOR_URL is the deployed collector origin, e.g. "https://practical-map-collector.vercel.app"
+   (see collector/README.md). Leave it empty to keep the sign-in gate but store identity locally and send nothing:
+   that is how local work and the tests run. */
+const COLLECTOR_URL = "";
+const TRACK_BEAT_MS = 30000;        /* summarised activity heartbeat while active and visible */
+const TRACK_IDLE_MS = 5*60*1000;    /* no activity for this long ends the session */
+const IDENTITY_DAYS = 7;            /* how long a browser stays recognised after entering an email */
 /* HTML-escape any text that did not come from this file. Recheck can rewrite model fields from an AI reply, so every
    model string that reaches innerHTML goes through this. */
 function esc(s){return String(s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]))}
@@ -497,6 +527,7 @@ document.getElementById("recommend").onclick=()=>{
  const text=document.getElementById("task").value.trim();
  if(!text){document.getElementById("task").focus();return}
  const r=recommend(text);
+ trackEvent("chooser_recommended",{signals:matchSignals(r.n).join(",")||"none",task_chars:text.length,preset:[...document.querySelectorAll(".preset")].some(x=>x.dataset.preset===text)});
  renderRec(document.getElementById("cheap"),"01 · Cheapest that should get it done",r.cheap,r.n,"cheap");
  renderRec(document.getElementById("premium"),"02 · Best regardless of price",r.premium,r.n,"premium");
  renderRec(document.getElementById("balanced"),"03 · Best practical overall",r.balanced,r.n,"balanced");
@@ -505,8 +536,8 @@ document.getElementById("recommend").onclick=()=>{
  document.getElementById("results").scrollIntoView({behavior:"smooth",block:"nearest"});
  initPromptBuilder(r);
 };
-document.getElementById("clear").onclick=()=>{document.getElementById("task").value="";document.getElementById("results").style.display="none";document.getElementById("chooserNote").style.display="none";document.getElementById("prompt").style.display="none"};
-document.querySelectorAll(".preset").forEach(b=>b.onclick=()=>{document.getElementById("task").value=b.dataset.preset;document.getElementById("recommend").click()});
+document.getElementById("clear").onclick=()=>{trackEvent("chooser_cleared");document.getElementById("task").value="";document.getElementById("results").style.display="none";document.getElementById("chooserNote").style.display="none";document.getElementById("prompt").style.display="none"};
+document.querySelectorAll(".preset").forEach(b=>b.onclick=()=>{trackEvent("chooser_preset_used",{label:b.textContent});document.getElementById("task").value=b.dataset.preset;document.getElementById("recommend").click()});
 
 /* ---------- Step 2: prompt builder ---------- */
 const pb={rec:null,target:"balanced",answers:{},step:0,ct:null,plans:null,subs:null};
@@ -620,14 +651,14 @@ function renderSubs(){
    </div>`;
  }).join("");
  $("subs").querySelectorAll(".plan").forEach(b=>b.onclick=()=>{
-   const s=b.closest(".subcard").dataset.s; pb.plans[s]=b.dataset.p; savePlans();
+   const s=b.closest(".subcard").dataset.s; pb.plans[s]=b.dataset.p; savePlans(); trackEvent("prompt_plan_changed",{vendor:s,tier:b.dataset.p});
    pb.subs=planSubs(pb.rec,$("task").value.trim().toLowerCase());
    if(pb.target===s||pb.target.startsWith(`m:${s}:`)) pb.target=s;
    renderSubs(); renderTargets();
    if($("output").style.display!=="none") renderOutput(); else renderWizard();
  });
  $("subs").querySelectorAll(".rung").forEach(b=>b.onclick=()=>{
-   pb.target=b.dataset.t; renderSubs(); renderTargets();
+   pb.target=b.dataset.t; trackEvent("prompt_target_selected",{model_id:resolveTarget().m.id}); renderSubs(); renderTargets();
    if($("output").style.display!=="none") renderOutput(); else renderWizard();
  });
 }
@@ -697,7 +728,7 @@ function renderTargets(){
  $("targets").innerHTML=["balanced","cheap","premium"].map(k=>`<button class="target ${pb.target===k?'on':''}" data-t="${k}"><small>${targetLabels[k]}</small>${esc(pb.rec[k].name)}</button>`).join("")
   + Object.keys(subs).map(k=>`<button class="target ${subOn(k)?'on':''}" data-t="${k}"><small>Your ${subs[k].name}</small>${esc(resolveTargetFor(k).name)}</button>`).join("");
  $("targets").querySelectorAll(".target").forEach(b=>b.onclick=()=>{
-   pb.target=b.dataset.t; renderTargets(); renderSubs();
+   pb.target=b.dataset.t; trackEvent("prompt_target_selected",{model_id:resolveTarget().m.id}); renderTargets(); renderSubs();
    if($("output").style.display!=="none") renderOutput(); else renderWizard();
  });
 }
@@ -1373,6 +1404,7 @@ function buildPrompt(m,g){
 function renderOutput(){
  $("wizard").style.display="none";
  const rt=resolveTarget(), m=rt.m, g=modelGuidance[m.id]||{role:"an expert assistant",style:"Work carefully and completely.",tips:"Edit the text above freely before copying."};
+ if($("output").style.display==="none") trackEvent("prompt_built",{answers:Object.keys(pb.answers).length,model_id:m.id});
  $("outTitle").textContent=`Prompt for ${m.name} · ${rt.label}`;
  $("promptOut").value=buildPrompt(m,g);
  let extra="";
@@ -1388,11 +1420,12 @@ function renderOutput(){
 }
 $("copyPrompt").onclick=async()=>{
  const t=$("promptOut");
+ trackEvent("prompt_copied",{model_id:resolveTarget().m.id});
  try{ await navigator.clipboard.writeText(t.value) }
  catch(e){ t.focus(); t.select(); document.execCommand("copy"); t.setSelectionRange(0,0); t.blur() }
  const c=$("copied"); c.classList.add("show"); clearTimeout(pb.ct); pb.ct=setTimeout(()=>c.classList.remove("show"),1800);
 };
-$("editAnswers").onclick=()=>{pb.step=0; $("output").style.display="none"; renderWizard(); $("wizard").scrollIntoView({behavior:"smooth",block:"nearest"})};
+$("editAnswers").onclick=()=>{trackEvent("prompt_edited");pb.step=0; $("output").style.display="none"; renderWizard(); $("wizard").scrollIntoView({behavior:"smooth",block:"nearest"})};
 
 /* ---------- Recheck: search for the latest price / capability / functionality changes, pick which to apply ---------- */
 const PATCH_FIELDS={input:"num",output:"num",name:"str",desc:"str",best:"str",tags:"arr",breadth:"score",depth:"score",agent:"score",code:"score",long:"score",research:"score",multi:"score",discipline:"score",value:"score",costTier:"tier"};
@@ -1595,6 +1628,7 @@ function showChanges(r,meta){
  rc.changes=r.changes; rc.through=r.through;
  $("rcResults").style.display="block";
  const n=r.changes.length;
+ trackEvent("recheck_results_loaded",{changes:n});
  $("rcFound").textContent=n?`${n} change${n===1?"":"s"} found`:"No changes found";
  $("rcThrough").textContent=`Information checked through ${fmtDate(r.through)}${meta?" · "+meta:""}. Tick what you want to apply.`;
  rcStatus(n?"":"Nothing new was reported. Apply anyway to move the Current view date forward to the checked-through date.","ok");
@@ -1602,16 +1636,17 @@ function showChanges(r,meta){
  $("rcResults").scrollIntoView({behavior:"smooth",block:"nearest"});
 }
 
-$("recheck").onclick=()=>{ $("rc").style.display="block"; $("rc").scrollIntoView({behavior:"smooth",block:"start"}); };
+$("recheck").onclick=()=>{ trackEvent("recheck_opened"); $("rc").style.display="block"; $("rc").scrollIntoView({behavior:"smooth",block:"start"}); };
 $("rcClose").onclick=()=>{ $("rc").style.display="none" };
 $("rcCopyPrompt").onclick=()=>copyText(recheckPrompt(),$("rcCopied"));
-$("rcLoad").onclick=()=>{ try{ showChanges(parseResult($("rcPaste").value)) }catch(e){ rcStatus("Could not read that result: "+e.message,"err") } };
+$("rcLoad").onclick=()=>{ trackEvent("recheck_run",{mode:"paste"}); try{ showChanges(parseResult($("rcPaste").value)) }catch(e){ rcStatus("Could not read that result: "+e.message,"err") } };
 $("rcRun").onclick=async()=>{
  const key=$("rcKey").value.trim();
  if(!key){ rcStatus("Enter an Anthropic API key, or use Option B.","err"); $("rcKey").focus(); return }
  const model=$("rcModel").value;
  /* The key lives in sessionStorage only (this tab, cleared on close); it is never written to localStorage. */
  try{ if($("rcRemember").checked) sessionStorage.setItem("pm_apikey",key); else sessionStorage.removeItem("pm_apikey"); localStorage.setItem("pm_rcmodel",model) }catch(e){ storageWarn("the remembered key and model",e) }
+ trackEvent("recheck_run",{mode:"api",model});
  $("rcRun").disabled=true; rcStatus(`Searching with ${model}… this usually takes one to three minutes.`);
  try{
    const out=await callClaude(key,model,recheckPrompt(),m=>rcStatus(m));
@@ -1629,6 +1664,7 @@ function sameChange(a,b){
 }
 $("rcApply").onclick=()=>{
  const sel=rc.changes.filter(c=>c.selected);
+ trackEvent("recheck_applied",{applied:sel.length});
  const through=rc.through||todayIso();
  let added=0, dup=0;
  sel.forEach(c=>{
@@ -1644,15 +1680,156 @@ $("rcApply").onclick=()=>{
  $("viewDate").scrollIntoView({behavior:"smooth",block:"center"});
 };
 $("rcReset").onclick=()=>{
+ trackEvent("recheck_reset");
  rc.state={asOf:PUBLISHED_AS_OF,applied:[]}; try{ localStorage.removeItem("pm_recheck") }catch(e){ storageWarn("applied Recheck changes",e) }
  applyState(); rcStatus("Back to the published snapshot of "+fmtDate(PUBLISHED_AS_OF)+".","ok");
 };
+
+/* ---------- Sign-in gate and usage analytics ----------
+   The gate is a sign-in sheet, not a lock: nobody proves the address is theirs and this file is public. Its job is to
+   put a name on each visit. Identity is a random token issued by the collector (never the email itself) and every
+   analytics write is attributed by the collector from that token, so nothing here decides who the visitor is.
+   Nothing in this block ever reaches innerHTML, and it never sends the task text, prompt answers or the API key. */
+const EMAIL_RE=/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
+const track={identity:null,sid:null,active:false,lastActivity:0,unsent:0,beatAcc:0,timer:null,pageViewed:false};
+function newId(){
+ try{ if(crypto.randomUUID) return crypto.randomUUID(); const a=new Uint8Array(16); crypto.getRandomValues(a); return [...a].map(b=>b.toString(16).padStart(2,"0")).join("") }
+ catch(e){ return Date.now().toString(36)+Math.random().toString(36).slice(2) }
+}
+function tzName(){ try{ return Intl.DateTimeFormat().resolvedOptions().timeZone||"" }catch(e){ return "" } }
+function collectorUrl(path){ return COLLECTOR_URL.replace(/\/+$/,"")+path }
+/* One JSON object per request, sent as text/plain: that content type needs no CORS preflight, so beacons fired during
+   unload are not dropped. The collector parses the body as JSON whatever the declared type. */
+function trackSend(type,extra,beacon){
+ if(!COLLECTOR_URL||!track.identity||!track.identity.token||!track.sid) return false;
+ const loc=window.location||{};
+ const body=JSON.stringify(Object.assign({v:1,token:track.identity.token,sid:track.sid,type,ts:new Date().toISOString(),path:loc.pathname||"/",hash:loc.hash||"",ref:document.referrer||"",tz:tzName()},extra||{}));
+ const url=collectorUrl("/api/track");
+ try{
+   if(beacon&&typeof navigator.sendBeacon==="function"&&navigator.sendBeacon(url,new Blob([body],{type:"text/plain;charset=UTF-8"}))) return true;
+   const p=fetch(url,{method:"POST",headers:{"Content-Type":"text/plain;charset=UTF-8"},body,keepalive:true,mode:"cors",credentials:"omit"});
+   if(p&&p.then) p.then(r=>{ if(r&&r.status===401) gate.expire() }).catch(()=>{});
+ }catch(e){}
+ return true;
+}
+/* Reusable tracker for meaningful actions: trackEvent("prompt_copied",{model_id:"opus"}). Names are snake_case; the
+   first segment is the feature. Metadata is a flat object of at most ten short strings, numbers or booleans. */
+function trackEvent(name,meta){
+ try{
+   if(!/^[a-z][a-z0-9_]{1,48}$/.test(String(name))||!track.active) return false;
+   const m={}; let n=0;
+   for(const [k,v] of Object.entries(meta||{})){
+     if(n>=10) break;
+     if(!/^[a-z][a-z0-9_]{0,30}$/.test(k)) continue;
+     if(typeof v==="string") m[k]=v.slice(0,100); else if(typeof v==="number"||typeof v==="boolean") m[k]=v; else continue;
+     n++;
+   }
+   return trackSend("event",{name,feature:name.split("_")[0],meta:m});
+ }catch(e){ return false }
+}
+/* A session is one continuous period of use in one tab. Five minutes without activity ends it; the next activity
+   starts a new one. Only seconds while the tab is visible and recently active are counted, and they are sent as a
+   summarised heartbeat, so a tab left open in the background costs nothing and inflates nothing. */
+track.start=identity=>{
+ track.identity=identity;
+ if(track.active) return;
+ let fresh=false;
+ try{ track.sid=sessionStorage.getItem("pm_sid")||null }catch(e){ track.sid=null }
+ if(!track.sid){ track.sid=newId(); fresh=true; try{ sessionStorage.setItem("pm_sid",track.sid) }catch(e){} }
+ track.active=true; track.lastActivity=Date.now(); track.unsent=0; track.beatAcc=0;
+ trackSend("start",{reason:fresh?"new":"resume"});
+ if(fresh) trackEvent("application_opened");
+ if(!track.pageViewed){ track.pageViewed=true; trackEvent("page_view",{hash:(window.location&&window.location.hash)||""}); }
+ if(!track.timer) track.timer=setInterval(track.tick,1000);
+};
+track.tick=()=>{
+ if(!track.active) return;
+ if(Date.now()-track.lastActivity>=TRACK_IDLE_MS){ track.end("idle"); return }
+ if(document.visibilityState!=="hidden") track.unsent++;
+ track.beatAcc+=1000;
+ if(track.beatAcc>=TRACK_BEAT_MS){ track.beatAcc=0; track.flush(false) }
+};
+track.flush=beacon=>{ if(!track.active||track.unsent<=0) return false; const s=track.unsent; track.unsent=0; return trackSend("beat",{active_seconds:s},beacon) };
+track.end=reason=>{
+ if(!track.active) return false;
+ const s=track.unsent; track.unsent=0;
+ trackSend("end",{active_seconds:s,reason:String(reason||"")},true);
+ track.active=false;
+ if(reason!=="pagehide"){ track.sid=null; try{ sessionStorage.removeItem("pm_sid") }catch(e){} }
+ return true;
+};
+track.activity=()=>{ track.lastActivity=Date.now(); if(!track.active&&track.identity) track.start(track.identity) };
+track.stop=()=>{ if(track.timer){ clearInterval(track.timer); track.timer=null } };
+if(typeof document.addEventListener==="function"){
+ let lastMove=0;
+ const bump=()=>track.activity();
+ ["keydown","click","pointerdown","touchstart"].forEach(t=>document.addEventListener(t,bump,{passive:true}));
+ ["mousemove","scroll"].forEach(t=>document.addEventListener(t,()=>{ const n=Date.now(); if(n-lastMove>1000){ lastMove=n; bump() } },{passive:true}));
+ document.addEventListener("visibilitychange",()=>{ if(document.visibilityState==="hidden") track.flush(true); else track.activity() });
+}
+if(typeof window.addEventListener==="function"){
+ window.addEventListener("pagehide",()=>track.end("pagehide"));
+ window.addEventListener("hashchange",()=>{ track.activity(); trackEvent("route_changed",{to:(window.location&&window.location.hash)||""}) });
+}
+document.querySelectorAll(".nav a").forEach(a=>a.onclick=()=>{ trackEvent("nav_clicked",{to:a.getAttribute("href")||""}) });
+
+const gate={};
+gate.valid=e=>{ const s=String(e==null?"":e).trim().toLowerCase(); return s.length<=254&&EMAIL_RE.test(s)?s:null };
+gate.load=()=>{
+ try{
+   const id=JSON.parse(localStorage.getItem("pm_identity")||"null");
+   if(id&&gate.valid(id.email)&&typeof id.exp==="string"&&Date.parse(id.exp)>Date.now()) return {email:gate.valid(id.email),token:typeof id.token==="string"?id.token:null,exp:id.exp};
+ }catch(e){}
+ try{ localStorage.removeItem("pm_identity") }catch(e){}
+ return null;
+};
+gate.save=id=>{ try{ localStorage.setItem("pm_identity",JSON.stringify(id)) }catch(e){} };
+gate.open=()=>{ $("gate").style.display="grid"; if(document.body&&document.body.classList) document.body.classList.add("gated"); $("gateEmail").focus() };
+gate.close=id=>{ $("gate").style.display="none"; if(document.body&&document.body.classList) document.body.classList.remove("gated"); $("signOut").textContent="Switch user · "+id.email; track.start(id) };
+/* Ask the collector for an identity token. A collector failure never blocks the visitor: they are admitted with a
+   local identity for one day and the request is retried at the next boot. */
+gate.identify=async email=>{
+ const until=d=>new Date(Date.now()+d*864e5).toISOString();
+ if(!COLLECTOR_URL){ const id={email,token:null,exp:until(IDENTITY_DAYS)}; gate.save(id); return id }
+ let timer=null;
+ try{
+   const ctrl=typeof AbortController!=="undefined"?new AbortController():null;
+   if(ctrl) timer=setTimeout(()=>ctrl.abort(),8000);
+   const res=await fetch(collectorUrl("/api/identify"),{method:"POST",headers:{"Content-Type":"text/plain;charset=UTF-8"},body:JSON.stringify({v:1,email}),mode:"cors",credentials:"omit",signal:ctrl?ctrl.signal:undefined});
+   if(res&&res.ok){ const j=await res.json(); if(j&&typeof j.token==="string"&&typeof j.exp==="string"){ const id={email,token:j.token,exp:j.exp}; gate.save(id); return id } }
+ }catch(e){}
+ finally{ if(timer) clearTimeout(timer) }
+ const id={email,token:null,exp:until(1)}; gate.save(id); return id;
+};
+gate.submit=async()=>{
+ const email=gate.valid($("gateEmail").value);
+ if(!email){ $("gateErr").textContent="Enter a valid email address."; $("gateEmail").focus(); return false }
+ $("gateErr").textContent=""; $("gateGo").disabled=true;
+ try{ gate.close(await gate.identify(email)) } finally{ $("gateGo").disabled=false }
+ return true;
+};
+gate.signOut=()=>{
+ track.end("signout");
+ try{ localStorage.removeItem("pm_identity"); sessionStorage.removeItem("pm_sid") }catch(e){}
+ track.identity=null; $("gateEmail").value=""; $("signOut").textContent="Switch user"; gate.open();
+};
+/* The collector no longer recognises the token (expired or revoked): forget it and ask again. */
+gate.expire=()=>{ if(!track.identity) return; track.active=false; track.identity=null; try{ localStorage.removeItem("pm_identity") }catch(e){} gate.open() };
+gate.boot=async()=>{
+ const id=gate.load();
+ if(!id){ gate.open(); return }
+ if(!id.token&&COLLECTOR_URL) gate.close(await gate.identify(id.email)); else gate.close(id);
+};
+$("gateForm").onsubmit=e=>{ if(e&&e.preventDefault) e.preventDefault(); gate.submit(); return false };
+$("signOut").onclick=()=>gate.signOut();
 
 /* Boot: restore remembered settings and any changes applied earlier in this browser, then draw the map. */
 try{ localStorage.removeItem("pm_apikey"); /* earlier versions kept the key on disk; purge it */ }catch(e){ console.warn("[storage] could not purge a legacy key entry",e) }
 try{ const k=sessionStorage.getItem("pm_apikey"); if(k){ $("rcKey").value=k; $("rcRemember").checked=true } const mm=localStorage.getItem("pm_rcmodel"); if(mm) $("rcModel").value=mm; }catch(e){ storageWarn("the remembered key and model",e) }
 try{ rc.state=loadRc(); applyState(); }
 catch(e){ console.error("Recheck restore failed; showing the published snapshot.",e); rc.state={asOf:PUBLISHED_AS_OF,applied:[]}; renderModels(); renderPricing(); }
+if(!COLLECTOR_URL) console.info("Usage tracking is off: COLLECTOR_URL is empty.");
+gate.boot();
 </script>
 </body>
 </html>

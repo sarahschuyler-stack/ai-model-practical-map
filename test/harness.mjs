@@ -1,7 +1,8 @@
 // Loads the inline script from index.html into a stub DOM so the page logic
-// (chooser, prompt builder, Recheck parsing, rendering and the click handlers
-// that wire them together) can be exercised under `node --test` without a
-// browser. Nothing here is served to users.
+// (chooser, prompt builder, Recheck parsing, rendering, the click handlers
+// that wire them together, the sign-in gate and the usage tracker) can be
+// exercised under `node --test` without a browser. Nothing here is served to
+// users.
 //
 // The stub DOM is deliberately small. It parses the page's own static markup
 // and anything the script assigns to `innerHTML` into a tree of elements that
@@ -11,6 +12,10 @@
 // tests to press the same buttons a user does. Earlier versions returned []
 // from every querySelectorAll, which hid the whole interactive layer from the
 // suite (September 2026 review, weakness #1).
+//
+// document and window also record addEventListener calls so tests can fire
+// visibilitychange, pagehide, hashchange and activity events at the tracker,
+// and navigator.sendBeacon records what the page would send during unload.
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
@@ -34,6 +39,7 @@ const EXPORTS = [
   "cleanPatch", "normalizeChange", "parseResult", "applyPatch", "applyState", "isoDate", "todayIso", "fmtDate", "tierFor",
   "sameChange", "MAX_APPLIED", "storageWarn",
   "callClaude", "recheckPrompt", "rc", "pb", "resolveTarget",
+  "gate", "track", "trackEvent", "COLLECTOR_URL", "TRACK_BEAT_MS", "TRACK_IDLE_MS", "IDENTITY_DAYS",
 ];
 
 let treeVersion = 0; // bumped on every innerHTML assignment so id lookups can cache the flattened tree
@@ -111,6 +117,7 @@ function makeElement(id, tag = "div") {
     querySelectorAll(sel) { return descendants(this).filter(e => matches(e, sel)); },
     querySelector(sel) { return this.querySelectorAll(sel)[0] || null; },
     closest(sel) { let e = this; while (e) { if (e.tagName && matches(e, sel)) return e; e = e.parentNode; } return null; },
+    getAttribute(n) { return n in this.attributes ? this.attributes[n] : null; },
     addEventListener(t, f) { listeners[t] = f; }, appendChild(c) { c.parentNode = this; this.children.push(c); },
     /** Simulate a user click: the page assigns `onclick` properties, so call that with a minimal event. */
     click() { if (typeof this.onclick === "function") this.onclick({ target: this, preventDefault() {} }); },
@@ -134,19 +141,30 @@ const blockedStorage = (msg = "Access is denied for this document") => {
   return { getItem: boom, setItem: boom, removeItem: boom };
 };
 
+/** Records listeners so tests can fire them: target.fire("visibilitychange"). */
+function listenable(target) {
+  target._listeners = {};
+  target.addEventListener = (t, f) => { (target._listeners[t] ||= []).push(f); };
+  target.fire = (t, ev) => { for (const f of target._listeners[t] || []) f(ev || {}); };
+  return target;
+}
+
 /**
  * Evaluate the page script against stubs.
- * @param {{fetch?: Function, storage?: {local?: object, session?: object}}} opts
+ * @param {{fetch?: Function, storage?: {local?: object, session?: object}, collectorUrl?: string}} opts
+ *   collectorUrl replaces the empty COLLECTOR_URL constant in the script so the tracker actually sends.
  */
-export function load({ fetch: fetchImpl, storage } = {}) {
+export function load({ fetch: fetchImpl, storage, collectorUrl } = {}) {
   const root = makeElement("<root>", "body");
   root.innerHTML = bodyMarkup;
   const synthetic = new Map();
   let flatVersion = -1, flat = [];
   const all = () => { if (flatVersion !== treeVersion) { flat = descendants(root); flatVersion = treeVersion; } return flat; };
-  const document = {
+  const document = listenable({
     title: "",
     body: root,
+    visibilityState: "visible",
+    referrer: "",
     getElementById(id) {
       const found = all().find(e => e.id === id);
       if (found) return found;
@@ -157,23 +175,29 @@ export function load({ fetch: fetchImpl, storage } = {}) {
     querySelector(sel) { return root.querySelector(sel); },
     createElement(tag) { return makeElement(null, tag); },
     execCommand() { return true; },
-  };
+  });
   const localStorage = (storage && storage.local) || memStorage();
   const sessionStorage = (storage && storage.session) || memStorage();
   const copied = [];
-  const navigator = { clipboard: { writeText: async t => { copied.push(t); } } };
+  const navigator = { clipboard: { writeText: async t => { copied.push(t); } }, _beacons: [], sendBeacon(url, blob) { navigator._beacons.push({ url, blob }); return true; } };
   const fetch = fetchImpl || (async () => { throw new Error("fetch is not available in tests; pass a mock"); });
-  const window = { location: { reload() {} } };
+  const window = listenable({ location: { reload() {}, pathname: "/ai-model-practical-map/", hash: "" } });
   const logs = [];
   const consoleStub = {
     log: (...a) => logs.push(["log", ...a]), info: (...a) => logs.push(["info", ...a]),
     warn: (...a) => logs.push(["warn", ...a]), error: (...a) => logs.push(["error", ...a]),
   };
 
+  let src = source;
+  if (collectorUrl) {
+    const needle = 'const COLLECTOR_URL = "";';
+    if (!src.includes(needle)) throw new Error("COLLECTOR_URL constant not found in index.html");
+    src = src.replace(needle, `const COLLECTOR_URL = ${JSON.stringify(collectorUrl)};`);
+  }
   const fn = new Function("document", "localStorage", "sessionStorage", "navigator", "fetch", "window", "console",
-    source + "\nreturn {" + EXPORTS.map(n => `${n}: typeof ${n} === "undefined" ? undefined : ${n}`).join(",") + "};");
+    src + "\nreturn {" + EXPORTS.map(n => `${n}: typeof ${n} === "undefined" ? undefined : ${n}`).join(",") + "};");
   const api = fn(document, localStorage, sessionStorage, navigator, fetch, window, consoleStub);
-  return { ...api, document, localStorage, sessionStorage, logs, copied, el: id => document.getElementById(id), qsa: sel => document.querySelectorAll(sel) };
+  return { ...api, document, window, navigator, localStorage, sessionStorage, logs, copied, el: id => document.getElementById(id), qsa: sel => document.querySelectorAll(sel) };
 }
 
 /** The six presets exactly as the page ships them (data-preset attributes). */

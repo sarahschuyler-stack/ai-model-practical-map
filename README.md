@@ -10,7 +10,7 @@ Live site: served by GitHub Pages from the `main` branch root.
 2. **Prompt builder.** The Step 1 description is the raw material. The builder splits it into numbered requirements and explicit exclusions, works out what kind of job it is (software change, research, document review, decision analysis, agent workflow, writing) and fires the domain playbooks it mentions (an email gate, usage analytics, payments, a market scan, a decision memo...). Each playbook contributes goal bullets, requirement sections, implementation phases, tests and final-deliverable items, and the result is a full brief tuned to the chosen model. Up to ten short questions layer detail on top; skipping them all still produces a complete brief. It also tells you which ChatGPT or Claude subscription tier fits the job and when an upgrade would pay off.
 3. **Recheck.** Ask an AI to search the web for price, capability and availability changes since the snapshot date, review the findings one by one, and apply the ones you trust. Applied changes are stored in your browser and replayed on top of the published snapshot every load. Reset returns to the published snapshot.
 
-Everything runs in the browser. There is no server, no build step and no runtime dependency.
+The page itself is still one static file with no build step and no runtime dependency. Visitors enter an email before using it, and a small companion service in `collector/` (deployed to Vercel with a Postgres database) records who visited, when, for how long and which features they used, and serves an admin dashboard. See [Sign-in and usage analytics](#sign-in-and-usage-analytics).
 
 ## Running locally
 
@@ -40,10 +40,13 @@ Requires Node 22 or newer and nothing else. `test/harness.mjs` extracts the inli
 | `test/recheck.test.mjs` | JSON parsing (fenced, prose-wrapped, truncated, hostile), patch validation, apply/reset loop, duplicate detection, the 200-entry cap, `callClaude` with a mocked API including the continuation budget |
 | `test/storage.test.mjs` | Blocked or unreadable browser storage: the page keeps working, warns once per cause in the console, and shows one notice |
 | `test/apikey.test.mjs` | Key storage rules |
+| `test/gate.test.mjs` | The email gate: validation, identify flow, seven-day identity, refresh and return visits, switch user, collector failures never block |
+| `test/track.test.mjs` | Sessions, idle timeout, active-time accounting, beacons, event validation, the named page events |
+| `collector/test/*.test.mjs` | The collector with the database mocked: validation, identify, track, admin login and pages, report queries, migrations |
 
 For a check in a real browser, serve the folder and drive `index.html` with Playwright or by hand; the suite above deliberately has no browser dependency.
 
-GitHub Actions runs the suite on every push and pull request (`.github/workflows/ci.yml`).
+GitHub Actions runs both suites on every push and pull request (`.github/workflows/ci.yml`). The collector suite runs with `npm test --prefix collector` after `npm ci --prefix collector`.
 
 The **golden test** in `test/chooser.test.mjs` records the current cheap/premium/balanced pick for each preset. If you retune scores or weights, that test will fail until you update it, which is the point: pick changes should be deliberate.
 
@@ -113,7 +116,46 @@ Option A sends the same prompt to the Claude API from the browser with server-si
 - **Content Security Policy.** A `<meta http-equiv="Content-Security-Policy">` tag in the head is the second layer behind `esc()`: `default-src 'none'`, inline script and style only, `connect-src` limited to `https://api.anthropic.com`, no images except `data:` URIs, and no `<base>` or form targets. If an escaping slip ever let markup through, it still could not load a script, style or beacon from anywhere. Verified in headless Chromium: the page issues exactly one request to load and one to the Claude API when Recheck Option A runs, and no violation is reported.
 - **Validation.** `cleanPatch()` whitelists fields and clamps ranges; `normalizeChange()` drops unknown models, malformed new-model entries and non-HTTP sources.
 - **API key.** Sent only to `api.anthropic.com`. If you tick "remember", it is kept in `sessionStorage` for the current tab and cleared when the tab closes. It is never written to `localStorage`, and any key an earlier version left there is removed at boot.
-- **Persistence.** Applied Recheck changes live in `localStorage` under `pm_recheck`; plan choices under `pm_plans`; the last Recheck model under `pm_rcmodel`. Reset clears `pm_recheck`.
+- **Persistence.** Applied Recheck changes live in `localStorage` under `pm_recheck`; plan choices under `pm_plans`; the last Recheck model under `pm_rcmodel`; the sign-in identity (email, collector token, expiry) under `pm_identity`. The current usage session id lives in `sessionStorage` under `pm_sid`. Reset clears `pm_recheck`; Switch user clears `pm_identity` and `pm_sid`.
+
+## Sign-in and usage analytics
+
+### What the gate is, and is not
+
+Anyone opening the page sees an overlay asking for an email address, with a Continue button and one line saying what the email is for. There is no password and no verification email. It is a sign-in sheet, not a lock: nobody proves the address is theirs, and this file is public, so anyone can read the source and skip it. Its job is to put a name on each visit. Do not treat it as access control.
+
+The identity system is built so that verification can be switched on later without changing anything downstream; see "Enabling magic-link verification later".
+
+### How it works
+
+1. On Continue, the page normalises the email (trim, lowercase) and POSTs it to `COLLECTOR_URL/api/identify`. The collector creates or finds the user and returns a random identity token that lasts seven days. The page stores `{email, token, exp}` in `localStorage` (`pm_identity`) and opens the map. A reload or a return visit within seven days skips the gate.
+2. Every analytics request carries the token, never the email. The collector resolves the user from the token's SHA-256, so the browser cannot claim to be someone else, and a session id can only be written to by the user who started it.
+3. A **session** is one continuous period of use in one tab (`pm_sid` in `sessionStorage`). Five minutes without activity ends it; the next click, key, scroll or pointer movement starts a new one. Closing the tab ends it; a reload resumes it.
+4. **Active time** is counted client-side, one second at a time, only while the tab is visible and there has been activity in the last five minutes. Mouse movement and scrolling are throttled to once a second and are never sent. Every 30 seconds the accumulated seconds go out as one summarised `beat`; when the tab is hidden or closed the remainder goes out with `navigator.sendBeacon`. The collector credits at most 60 seconds per beat and never more than the wall time since the previous one, refuses beats closer than 20 seconds apart, and caps a session at 2000 events.
+5. **Events.** Automatic: `application_opened`, `page_view`, `route_changed` (hash navigation), `nav_clicked`, plus session start and end. Named actions: `chooser_recommended` (matched signals and the description length, never the text), `chooser_preset_used`, `chooser_cleared`, `prompt_plan_changed`, `prompt_target_selected`, `prompt_built`, `prompt_copied`, `prompt_edited`, `recheck_opened`, `recheck_run` (mode and model, never the key), `recheck_results_loaded`, `recheck_applied`, `recheck_reset`. `trackEvent(name, meta)` is the helper; names are snake_case and the first segment is the feature.
+6. Requests go out as `text/plain` so browsers need no CORS preflight and beacons during unload are not dropped. The collector parses the body as JSON regardless.
+7. If the collector is unreachable, the visitor is still admitted (with a local one-day identity that is retried at the next boot) and the page works normally. Analytics failures never break the application. With `COLLECTOR_URL` empty, the gate still works and nothing is sent; that is how local work and the tests run.
+
+### What is stored
+
+Users (email, normalised email, first and last seen, totals), hashed identity tokens, sessions (start, last activity, end and reason, active seconds, page views, referrer, landing path, coarse browser family such as `Safari/macOS`) and events (name, feature, path, small metadata). No IP addresses, no raw user agent, no task text, prompt answers or API keys. See `collector/migrations/0001_init.sql`.
+
+### The admin dashboard
+
+`https://<your-collector>.vercel.app/admin/usage` (the collector's root URL redirects there). Login needs an email listed in `ADMIN_EMAILS` **and** the `ADMIN_KEY` you set in Vercel; because gate emails are unverified, being on the list alone is never enough. The dashboard shows summary tiles, daily charts, a sortable and searchable users table with CSV export, per-user detail (sessions, features, event history, a delete button that removes every trace of one person), and a recent-activity feed. It is server-rendered with no JavaScript and every value is escaped.
+
+### Setup and configuration
+
+The deploy steps, the environment variables and the local development recipe are in [`collector/README.md`](collector/README.md). In short: Vercel project with Root Directory `collector`, a Neon Postgres database from the Vercel Marketplace, two environment variables, then paste the collector URL into `COLLECTOR_URL` near the top of the script in `index.html`. The database tables are created automatically the first time you log in to the dashboard.
+
+### Enabling magic-link verification later
+
+Nothing in `users`, `sessions`, `usage_events` or the dashboard changes. The work is confined to issuance:
+
+1. `collector/api/identify.js` stops returning a token. It stores a short-lived, single-use verification code (a new `verification_codes` table: code hash, user id, expiry) and emails a link `https://<collector>/api/verify?t=<code>` through any transactional mail service.
+2. A new `collector/api/verify.js` looks up the code, sets `users.email_verified_at`, issues the identity token exactly as `identify` does today, and redirects to the page with the token in the URL fragment (never the query string), where the gate stores it as it does now.
+3. In `index.html`, `gate.identify` shows "Check your email for a link" instead of closing the gate, and `gate.boot` reads a token from the fragment on load.
+4. `ADMIN_KEY` can then be retired: the admin login becomes "verified email in `ADMIN_EMAILS`".
 
 ## Known limits
 
@@ -125,5 +167,7 @@ Option A sends the same prompt to the Claude API from the browser with server-si
 ## Repository notes
 
 - `index.html` is committed with LF line endings; Windows checkouts see CRLF through `core.autocrlf`. Editors should preserve whichever they find.
+- `collector/` is the companion service (Vercel serverless functions plus Neon Postgres) that receives sign-ins and usage events and serves the admin dashboard. It has its own `package.json`, tests and README. Its only dependency is `@neondatabase/serverless`.
+- `email-gate-usage-tracking.prompt.md` is the task brief the sign-in gate and analytics were built from, kept for reference.
 - `index.html.html` is a stray local copy and is ignored by `.gitignore`. Do not commit it.
 - Some working trees carry a local task brief, `practical-map-prompt-generator.prompt.md`. It is not part of the repository; if you have one, keep it out of git with `.git/info/exclude`, which is per-clone and never pushed.
