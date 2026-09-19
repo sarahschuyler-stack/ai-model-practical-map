@@ -17,6 +17,7 @@ const source = html.slice(start + "<script>".length, end);
 const EXPORTS = [
   "models", "publishedModels", "PUBLISHED_AS_OF", "patterns", "stakesWords",
   "signal", "needs", "capability", "recommend", "matchSignals", "complexity", "planSubs", "buildPrompt",
+  "analyzeJob", "playbooks", "extractRequirements", "extractExclusions", "jobHints",
   "renderModels", "renderPricing", "renderRec", "exampleCost", "esc", "$",
   "cleanPatch", "normalizeChange", "parseResult", "applyPatch", "applyState", "isoDate", "todayIso", "fmtDate", "tierFor",
   "callClaude", "recheckPrompt", "rc", "pb",
