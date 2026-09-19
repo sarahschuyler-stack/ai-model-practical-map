@@ -7,7 +7,7 @@
      load, and the only network destination the page may open is the Claude API used by Recheck Option A. Deploying the usage
      collector means adding its one exact origin to connect-src (collector/README.md step 6) — never a wildcard such as
      https://*.vercel.app, which would let an escaping slip send data to anybody else's app on that shared domain. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; connect-src https://api.anthropic.com; img-src data:; base-uri 'none'; form-action 'none'"/>
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; connect-src https://api.anthropic.com https://ai-model-practical-map.vercel.app; img-src data:; base-uri 'none'; form-action 'none'"/>
 <title>AI Model Practical Map — September 2026</title>
 <style>
 :root{
@@ -408,7 +408,7 @@ const $=id=>document.getElementById(id);
 /* Usage analytics. COLLECTOR_URL is the deployed collector origin, e.g. "https://practical-map-collector.vercel.app"
    (see collector/README.md). Leave it empty to keep the sign-in gate but store identity locally and send nothing:
    that is how local work and the tests run. */
-const COLLECTOR_URL = "";
+const COLLECTOR_URL = "https://ai-model-practical-map.vercel.app";
 const TRACK_BEAT_MS = 30000;        /* summarised activity heartbeat while active and visible */
 const TRACK_IDLE_MS = 5*60*1000;    /* no activity for this long ends the session */
 const IDENTITY_DAYS = 7;            /* how long a browser stays recognised after entering an email */

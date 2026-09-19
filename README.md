@@ -10,7 +10,7 @@ Live site: served by GitHub Pages from the `main` branch root.
 2. **Prompt builder.** The Step 1 description is the raw material. The builder splits it into numbered requirements and explicit exclusions, works out what kind of job it is (software change, research, document review, decision analysis, agent workflow, writing) and fires the domain playbooks it mentions (an email gate, usage analytics, payments, a market scan, a decision memo...). Each playbook contributes goal bullets, requirement sections, implementation phases, tests and final-deliverable items, and the result is a full brief tuned to the chosen model. Up to ten short questions layer detail on top; skipping them all still produces a complete brief. It also tells you which ChatGPT or Claude subscription tier fits the job and when an upgrade would pay off.
 3. **Recheck.** Ask an AI to search the web for price, capability and availability changes since the snapshot date, review the findings one by one, and apply the ones you trust. Applied changes are stored in your browser and replayed on top of the published snapshot every load. Reset returns to the published snapshot.
 
-The page itself is still one static file with no build step and no runtime dependency. Visitors enter an email before using it, and a small companion service in `collector/` (deployed to Vercel with a Postgres database) can record who visited, when, for how long and which features they used, and serve an admin dashboard. **As committed, none of that happens:** `COLLECTOR_URL` near the top of the script in `index.html` is `""`, so the published page keeps the sign-in gate, stores the identity locally and sends nothing. Analytics start only once you deploy the collector and fill that constant in. See [Sign-in and usage analytics](#sign-in-and-usage-analytics).
+The page itself is still one static file with no build step and no runtime dependency. Visitors enter an email before using it, and a small companion service in `collector/` (deployed to Vercel with a Postgres database) records who visited, when, for how long and which features they used, and serves an admin dashboard. That collector is live at `https://ai-model-practical-map.vercel.app`, `COLLECTOR_URL` near the top of the script in `index.html` points at it, and the dashboard is at [`/admin/usage`](https://ai-model-practical-map.vercel.app/admin/usage). See [Sign-in and usage analytics](#sign-in-and-usage-analytics).
 
 ## Running locally
 
@@ -116,7 +116,7 @@ Option A sends the same prompt to the Claude API from the browser with server-si
 - **Content Security Policy.** A `<meta http-equiv="Content-Security-Policy">` tag in the head is the second layer behind `esc()`. The policy shipped in `index.html` is, exactly:
 
   ```
-  default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; connect-src https://api.anthropic.com; img-src data:; base-uri 'none'; form-action 'none'
+  default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; connect-src https://api.anthropic.com https://ai-model-practical-map.vercel.app; img-src data:; base-uri 'none'; form-action 'none'
   ```
 
   Inline script and style only, no images except `data:` URIs, no `<base>` or form targets, and one network destination: the Claude API used by Recheck Option A. If an escaping slip ever let markup through, it still could not load a script, style or beacon from anywhere. Verified in headless Chromium: the page issues exactly one request to load and one to the Claude API when Recheck Option A runs, and no violation is reported. `test/csp.test.mjs` compares the meta tag with this block character for character, so the two cannot drift apart.
@@ -128,7 +128,7 @@ Option A sends the same prompt to the Claude API from the browser with server-si
 
 ## Sign-in and usage analytics
 
-**Nothing is collected until you switch it on.** `index.html` ships `const COLLECTOR_URL = "";` (near the top of the script, just under the published snapshot), and every call in the tracking code is a no-op while that string is empty: the gate still asks for an email, the identity is stored in the browser only, and no request ever leaves the page. The rest of this section describes what happens *after* you deploy the collector, fill that constant in and add the collector's exact origin to the `connect-src` entry of the CSP meta tag. Until then, treat it as a design, not a running system.
+**Collection is switched on.** `index.html` sets `const COLLECTOR_URL = "https://ai-model-practical-map.vercel.app";` (near the top of the script, just under the published snapshot), and that origin is named in the `connect-src` entry of the CSP meta tag, so the page identifies visitors and reports usage to the collector deployed from `collector/`. Setting that constant back to `""` turns every call in the tracking code into a no-op: the gate still asks for an email, the identity is stored in the browser only, and no request leaves the page. That is how local work and the tests run.
 
 ### What the gate is, and is not
 
