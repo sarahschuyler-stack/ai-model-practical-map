@@ -149,12 +149,33 @@ function listenable(target) {
   return target;
 }
 
+/* Matches the COLLECTOR_URL declaration by identifier, not by the value it currently holds, so the suite keeps
+   working after an operator points the page at a deployed collector (collector/README.md step 6). Group 1 is
+   everything up to the string literal, group 2 the literal, group 3 the rest of the statement. */
+const COLLECTOR_URL_DECL = /(\bconst\s+COLLECTOR_URL\s*=\s*)("(?:[^"\\]|\\.)*"|'(?:[^'\\]|\\.)*'|`(?:[^`\\]|\\.)*`)(\s*;)/;
+
+/** The page script with COLLECTOR_URL set to `url`, whatever it was set to before. Throws if the constant is gone. */
+export function withCollectorUrl(src, url) {
+  if (!COLLECTOR_URL_DECL.test(src)) throw new Error("COLLECTOR_URL constant not found in index.html");
+  return src.replace(COLLECTOR_URL_DECL, (_m, before, _lit, after) => before + JSON.stringify(String(url)) + after);
+}
+
+/** The value index.html currently ships, read without evaluating the script. "" means tracking is off. */
+export function pageCollectorUrl() {
+  const m = source.match(COLLECTOR_URL_DECL);
+  if (!m) throw new Error("COLLECTOR_URL constant not found in index.html");
+  const lit = m[2];
+  return lit[0] === '"' ? JSON.parse(lit) : lit.slice(1, -1);
+}
+
 /**
  * Evaluate the page script against stubs.
- * @param {{fetch?: Function, storage?: {local?: object, session?: object}, collectorUrl?: string}} opts
- *   collectorUrl replaces the empty COLLECTOR_URL constant in the script so the tracker actually sends.
+ * @param {{fetch?: Function, storage?: {local?: object, session?: object}, collectorUrl?: string, pageSource?: string}} opts
+ *   collectorUrl is the COLLECTOR_URL the script runs with; it defaults to "" (tracking off) regardless of the
+ *   value committed in index.html, so tests do not change meaning when the page is pointed at a real collector.
+ *   pageSource overrides the script text itself and exists so the suite can prove that decoupling.
  */
-export function load({ fetch: fetchImpl, storage, collectorUrl } = {}) {
+export function load({ fetch: fetchImpl, storage, collectorUrl, pageSource } = {}) {
   const root = makeElement("<root>", "body");
   root.innerHTML = bodyMarkup;
   const synthetic = new Map();
@@ -188,12 +209,7 @@ export function load({ fetch: fetchImpl, storage, collectorUrl } = {}) {
     warn: (...a) => logs.push(["warn", ...a]), error: (...a) => logs.push(["error", ...a]),
   };
 
-  let src = source;
-  if (collectorUrl) {
-    const needle = 'const COLLECTOR_URL = "";';
-    if (!src.includes(needle)) throw new Error("COLLECTOR_URL constant not found in index.html");
-    src = src.replace(needle, `const COLLECTOR_URL = ${JSON.stringify(collectorUrl)};`);
-  }
+  const src = withCollectorUrl(pageSource || source, collectorUrl || "");
   const fn = new Function("document", "localStorage", "sessionStorage", "navigator", "fetch", "window", "console",
     src + "\nreturn {" + EXPORTS.map(n => `${n}: typeof ${n} === "undefined" ? undefined : ${n}`).join(",") + "};");
   const api = fn(document, localStorage, sessionStorage, navigator, fetch, window, consoleStub);
@@ -208,4 +224,4 @@ export function presets() {
   return out;
 }
 
-export { html, memStorage, blockedStorage };
+export { html, source as pageScript, memStorage, blockedStorage };
