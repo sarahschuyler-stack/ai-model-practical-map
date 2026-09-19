@@ -10,7 +10,7 @@ Live site: served by GitHub Pages from the `main` branch root.
 2. **Prompt builder.** The Step 1 description is the raw material. The builder splits it into numbered requirements and explicit exclusions, works out what kind of job it is (software change, research, document review, decision analysis, agent workflow, writing) and fires the domain playbooks it mentions (an email gate, usage analytics, payments, a market scan, a decision memo...). Each playbook contributes goal bullets, requirement sections, implementation phases, tests and final-deliverable items, and the result is a full brief tuned to the chosen model. Up to ten short questions layer detail on top; skipping them all still produces a complete brief. It also tells you which ChatGPT or Claude subscription tier fits the job and when an upgrade would pay off.
 3. **Recheck.** Ask an AI to search the web for price, capability and availability changes since the snapshot date, review the findings one by one, and apply the ones you trust. Applied changes are stored in your browser and replayed on top of the published snapshot every load. Reset returns to the published snapshot.
 
-The page itself is still one static file with no build step and no runtime dependency. Visitors enter an email before using it, and a small companion service in `collector/` (deployed to Vercel with a Postgres database) records who visited, when, for how long and which features they used, and serves an admin dashboard. See [Sign-in and usage analytics](#sign-in-and-usage-analytics).
+The page itself is still one static file with no build step and no runtime dependency. Visitors enter an email before using it, and a small companion service in `collector/` (deployed to Vercel with a Postgres database) can record who visited, when, for how long and which features they used, and serve an admin dashboard. **As committed, none of that happens:** `COLLECTOR_URL` near the top of the script in `index.html` is `""`, so the published page keeps the sign-in gate, stores the identity locally and sends nothing. Analytics start only once you deploy the collector and fill that constant in. See [Sign-in and usage analytics](#sign-in-and-usage-analytics).
 
 ## Running locally
 
@@ -113,12 +113,22 @@ Option A sends the same prompt to the Claude API from the browser with server-si
 ## Security model
 
 - **Escaping.** Every model string that reaches `innerHTML` (name, vendor, description, best-for, tags) passes through `esc()`. Recheck text is untrusted: it comes from an AI reply, and in Option A that reply was shaped by web pages the model read. A patch containing HTML renders as literal text. `test/xss.test.mjs` proves it with the payload from the September 2026 review.
-- **Content Security Policy.** A `<meta http-equiv="Content-Security-Policy">` tag in the head is the second layer behind `esc()`: `default-src 'none'`, inline script and style only, `connect-src` limited to `https://api.anthropic.com`, no images except `data:` URIs, and no `<base>` or form targets. If an escaping slip ever let markup through, it still could not load a script, style or beacon from anywhere. Verified in headless Chromium: the page issues exactly one request to load and one to the Claude API when Recheck Option A runs, and no violation is reported.
+- **Content Security Policy.** A `<meta http-equiv="Content-Security-Policy">` tag in the head is the second layer behind `esc()`. The policy shipped in `index.html` is, exactly:
+
+  ```
+  default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; connect-src https://api.anthropic.com; img-src data:; base-uri 'none'; form-action 'none'
+  ```
+
+  Inline script and style only, no images except `data:` URIs, no `<base>` or form targets, and one network destination: the Claude API used by Recheck Option A. If an escaping slip ever let markup through, it still could not load a script, style or beacon from anywhere. Verified in headless Chromium: the page issues exactly one request to load and one to the Claude API when Recheck Option A runs, and no violation is reported. `test/csp.test.mjs` compares the meta tag with this block character for character, so the two cannot drift apart.
+
+  **Deploying the collector widens this.** Add your collector's one exact origin to `connect-src` (`collector/README.md` step 6) and narrow it to that origin — never a wildcard such as `https://*.vercel.app`. `*.vercel.app` is shared and multi-tenant: anyone can deploy an app there, so a wildcard would let an escaping slip beacon stolen page state to a stranger's app and the guarantee above would no longer hold.
 - **Validation.** `cleanPatch()` whitelists fields and clamps ranges; `normalizeChange()` drops unknown models, malformed new-model entries and non-HTTP sources.
 - **API key.** Sent only to `api.anthropic.com`. If you tick "remember", it is kept in `sessionStorage` for the current tab and cleared when the tab closes. It is never written to `localStorage`, and any key an earlier version left there is removed at boot.
 - **Persistence.** Applied Recheck changes live in `localStorage` under `pm_recheck`; plan choices under `pm_plans`; the last Recheck model under `pm_rcmodel`; the sign-in identity (email, collector token, expiry) under `pm_identity`. The current usage session id lives in `sessionStorage` under `pm_sid`. Reset clears `pm_recheck`; Switch user clears `pm_identity` and `pm_sid`.
 
 ## Sign-in and usage analytics
+
+**Nothing is collected until you switch it on.** `index.html` ships `const COLLECTOR_URL = "";` (near the top of the script, just under the published snapshot), and every call in the tracking code is a no-op while that string is empty: the gate still asks for an email, the identity is stored in the browser only, and no request ever leaves the page. The rest of this section describes what happens *after* you deploy the collector, fill that constant in and add the collector's exact origin to the `connect-src` entry of the CSP meta tag. Until then, treat it as a design, not a running system.
 
 ### What the gate is, and is not
 
@@ -146,7 +156,7 @@ Users (email, normalised email, first and last seen, totals), hashed identity to
 
 ### Setup and configuration
 
-The deploy steps, the environment variables and the local development recipe are in [`collector/README.md`](collector/README.md). In short: Vercel project with Root Directory `collector`, a Neon Postgres database from the Vercel Marketplace, two environment variables, then paste the collector URL into `COLLECTOR_URL` near the top of the script in `index.html`. The database tables are created automatically the first time you log in to the dashboard.
+The deploy steps, the environment variables and the local development recipe are in [`collector/README.md`](collector/README.md). In short: Vercel project with Root Directory `collector`, a Neon Postgres database from the Vercel Marketplace, two environment variables, then two one-line edits in `index.html` — paste the collector URL into `COLLECTOR_URL` near the top of the script, and add that same origin to `connect-src` in the CSP meta tag on line 8, or the browser will block every request to it. Name the exact origin (`https://practical-map-collector.vercel.app`), not a wildcard. The database tables are created automatically the first time you log in to the dashboard.
 
 ### Enabling magic-link verification later
 
