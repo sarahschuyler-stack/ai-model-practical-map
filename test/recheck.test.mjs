@@ -126,3 +126,47 @@ test("network failure surfaces as a readable error", async () => {
   const q = load({ fetch: async () => { throw new TypeError("Failed to fetch"); } });
   await assert.rejects(q.callClaude("k", "m", "p", () => {}), /network error: Failed to fetch/);
 });
+
+test("Apply keeps two different changes that share a title, and reports true duplicates as skipped", () => {
+  const q = load();
+  const load2 = (changes) => { q.el("rcPaste").value = JSON.stringify({ checked_through: "2026-09-17", changes }); q.el("rcLoad").click(); q.el("rcApply").click(); };
+  load2([{ kind: "price", model: "opus", title: "Price update", summary: "Input $5 to $4", patch: { input: 4 } }]);
+  assert.match(q.el("rcStatus").textContent, /^Applied 1 change\. Current view/);
+  // Same headline, different content: must be kept.
+  load2([{ kind: "price", model: "opus", title: "Price update", summary: "Output $25 to $20", patch: { output: 20 } }]);
+  assert.equal(q.rc.state.applied.length, 2);
+  assert.equal(q.models.find(m => m.id === "opus").output, 20);
+  assert.match(q.el("rcStatus").textContent, /^Applied 1 change\./);
+  // Exact replay of an earlier change: skipped, and the status line says so instead of counting it.
+  load2([{ kind: "price", model: "opus", title: "Price update", summary: "Input $5 to $4", patch: { input: 4 } }]);
+  assert.equal(q.rc.state.applied.length, 2);
+  assert.match(q.el("rcStatus").textContent, /Applied 0 changes\. 1 was already applied earlier and skipped\./);
+  assert.ok(q.sameChange(q.rc.state.applied[0], q.rc.state.applied[0]));
+  assert.ok(!q.sameChange(q.rc.state.applied[0], q.rc.state.applied[1]));
+});
+
+test("callClaude names the continuation budget when the search never finishes, not a parsing error", async () => {
+  const paused = { status: 200, data: { stop_reason: "pause_turn", content: [{ type: "server_tool_use" }] } };
+  const f = fakeFetch([paused, paused, paused, paused, paused, paused, paused]);
+  const q = load({ fetch: f });
+  await assert.rejects(q.callClaude("k", "claude-opus-5", "p", () => {}), /still running after 5 continuations/);
+  assert.equal(f.calls.length, 6, "one initial call plus five continuations");
+  const summary = q.logs.find(l => l[0] === "info" && l[1] === "[recheck]");
+  assert.equal(summary[2].continuations, 5);
+});
+
+test("the applied-change list is capped: oldest entries drop first, with a console warning, and state stays replayable", () => {
+  const q = load();
+  const many = Array.from({ length: q.MAX_APPLIED + 5 }, (_, i) => ({ kind: "capability", model: "opus", title: "tweak " + i, summary: "s" + i, patch: { depth: (i % 100) / 10 } }));
+  q.el("rcPaste").value = JSON.stringify({ checked_through: "2026-09-17", changes: many });
+  q.el("rcLoad").click();
+  q.el("rcApply").click();
+  assert.equal(q.rc.state.applied.length, q.MAX_APPLIED);
+  assert.equal(q.rc.state.applied[0].title, "tweak 5", "the five oldest were dropped");
+  assert.ok(q.logs.some(l => l[0] === "warn" && /capped at 200; dropped the 5 oldest/.test(l[1])));
+  const saved = JSON.parse(q.localStorage.getItem("pm_recheck"));
+  assert.equal(saved.applied.length, q.MAX_APPLIED);
+  // The last applied patch wins on replay, in a fresh load from the same storage.
+  const q2 = load({ storage: { local: q.localStorage } });
+  assert.equal(q2.models.find(m => m.id === "opus").depth, ((q.MAX_APPLIED + 4) % 100) / 10);
+});
