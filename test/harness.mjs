@@ -39,6 +39,7 @@ const EXPORTS = [
   "cleanPatch", "normalizeChange", "parseResult", "applyPatch", "applyState", "isoDate", "todayIso", "fmtDate", "tierFor",
   "sameChange", "MAX_APPLIED", "storageWarn",
   "callClaude", "recheckPrompt", "rc", "pb", "resolveTarget",
+  "forge", "forgeBrief", "forgeSig", "stripFence", "renderOutput", "FORGE_MODEL", "FORGE_SYSTEM", "FORGE_MAX_TOKENS",
   "gate", "track", "trackEvent", "COLLECTOR_URL", "TRACK_BEAT_MS", "TRACK_IDLE_MS", "IDENTITY_DAYS",
 ];
 
