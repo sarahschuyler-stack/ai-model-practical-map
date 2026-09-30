@@ -1,212 +1,192 @@
-# Onboarding: AI Model Practical Map
+# Welcome to the Practical Map 🗺️
 
-Welcome aboard. This is the stuff that isn't in the README: why things are the way they are, what's broken before, and where the trapdoors are. Read it once end to end, then keep it as a map. Things change, and this file should change with them.
+Hi, I'm Sarah. I'm glad you're here.
 
-> **Honesty note.** Everything below comes from the code, the two READMEs and the full commit history (47 commits, 17–19 Sep 2026). Where the repo has no evidence (custom skills, MCP servers, secret rotation), this guide says so and leaves a **TODO(owner)**. A guess dressed up as fact is worse than a blank.
+This is the guide I wish someone had handed me: why things are the way they are, what's broken before, and where the trapdoors are. It won't take long to read, and it'll save you a bad afternoon or two.
+
+One promise before we start: where I don't know something yet, I've written **TODO(Sarah)** instead of making it up. A blank is honest. A confident guess is a trap with a welcome mat.
 
 ---
 
-## 1. Team / Project Identity
+## 1. Who we are and what this is
 
-**What it is.** A single static web page, `index.html`, that maps twelve frontier AI models by practical strengths and list price, then helps you:
+**The Practical Map is one web page that helps people pick the right AI model for a job, and then brief it well.**
 
-1. **pick** a model for a job (task chooser),
-2. **brief** it (prompt builder, plus an optional Claude Fable 5.1 "forge" rewrite),
-3. **keep the map fresh** (Recheck: an AI searches the web for price/capability changes and you apply the ones you trust).
+Picture a trail guide at a trailhead. You say "I need to get over that ridge before dark." They check the weather and your boots, then point you to a path. Then they hand you a map with the tricky turns already circled. That's the page:
 
-Visitors enter an email first. A small companion service in `collector/` records usage and serves an admin dashboard.
+| Step | What it does | The trail-guide version |
+|---|---|---|
+| **Task chooser** | Scores your job description; returns the cheapest model that can do it, the strongest one, and the best balance | "Here are three paths" |
+| **Prompt builder** | Turns your description into a full brief for the model you picked | "Here's your map, turns circled" |
+| **Prompt forge** *(optional)* | Claude Fable 5.1 rewrites that brief like a specialist would | "A local redrew it for you" |
+| **Recheck** | An AI searches the web for price and capability changes; you approve the ones you trust | "The trail moved; update the map" |
+
+Visitors enter an email first, and a little service in `collector/` keeps count of who came by and what they used.
 
 ```
-            ┌──────────────────────── browser ─────────────────────────┐
-            │  index.html  (GitHub Pages, main branch root)            │
-            │  ┌─────────┐   ┌──────────────┐   ┌─────────┐  ┌───────┐  │
-            │  │ chooser │──▶│prompt builder│──▶│  forge  │  │Recheck│  │
-            │  └─────────┘   └──────────────┘   └────┬────┘  └───┬───┘  │
-            │        gate + track                    │ your key  │      │
-            └──────────┬─────────────────────────────┼───────────┼──────┘
-                       │ token in body, text/plain   │           │
-                       ▼                             ▼           ▼
-        collector/ on Vercel ──▶ Neon Postgres    api.anthropic.com
-        /api/identify, /api/track, /admin/usage   (the only other origin)
+ ┌──────────────── the visitor's browser ────────────────┐
+ │  index.html   (GitHub Pages, straight from main)      │
+ │  chooser ─▶ prompt builder ─▶ forge      Recheck      │
+ │  email gate + usage tracker     │           │         │
+ └──────┬──────────────────────────┼───────────┼─────────┘
+        │ token, never the email   │  the visitor's own API key
+        ▼                          ▼           ▼
+  collector/ on Vercel ─▶ Neon Postgres    api.anthropic.com
+  (sign-in, usage, admin dashboard)        (the only other door)
 ```
 
 | | |
 |---|---|
-| **Owner** | Sarah Schuyler (`sarahschuyler-stack`). Merges every PR. |
-| **Maintainers** | Sarah, plus Claude Code sessions, which author nearly every commit. See §7. |
-| **Live page** | `https://sarahschuyler-stack.github.io/ai-model-practical-map/` |
-| **Collector** | `https://ai-model-practical-map.vercel.app` (dashboard at `/admin/usage`) |
-| **Stack** | Page: vanilla HTML/CSS/JS, one file, no build. Collector: Node 22 Vercel functions, one dependency (`@neondatabase/serverless`). |
-| **Tests** | `npm test` (page, 99 tests) and `npm test --prefix collector`. Node 22+, no browser. |
+| **Owner** | Me, Sarah Schuyler (`sarahschuyler-stack`). I merge every PR. |
+| **Maintainers** | Me, plus Claude Code sessions, which write most commits (§7). |
+| **Live page** | https://sarahschuyler-stack.github.io/ai-model-practical-map/ |
+| **Collector** | https://ai-model-practical-map.vercel.app (dashboard at `/admin/usage`) |
+| **Stack** | Plain HTML/CSS/JS in one file. The collector is Node 22 on Vercel with a single dependency. |
+| **Tests** | `npm test` (99 for the page) and `npm test --prefix collector`. Node 22, no browser needed. |
 
-**TODO(owner):** who the page is *for* (you? clients? the public?) and whether anyone besides Sarah is expected to review PRs.
-
----
-
-## 2. Architecture Principles
-
-Think of the page as a **lighthouse**: one tower, no moving parts you can't see from the shore. Everything below protects that.
-
-### The non-negotiables
-
-1. **One file, no build step, no runtime dependency.** `index.html` holds styles, markup and one inline `<script>`. If a change needs a bundler, it's the wrong change.
-2. **Untrusted text is escaped, then fenced.** Every model string headed for `innerHTML` goes through `esc()`. A strict CSP (`default-src 'none'`, exact origins in `connect-src`) is the second wall. **Never a wildcard origin.**
-3. **Claims and code can't drift apart.** If the README says something about security, a test checks it. `test/csp.test.mjs` compares the CSP meta tag with the README's quoted policy *character for character*.
-4. **Failure never costs the user anything.** Collector down? You're admitted anyway. Forge call fails? The draft stays put. Storage blocked? The page works in memory and tells you once.
-5. **Collect the minimum.** Analytics carry a token, never the email. No IPs, no raw user agents, no task text, no prompts, no API keys. The API key only ever goes to `api.anthropic.com`, and only lives in `sessionStorage`.
-
-### Patterns we use
-
-| Pattern | Why |
-|---|---|
-| Small state objects (`rc`, `pb`, `gate`, `track`, `forge`) beside each other in the script | The test harness can reach them directly, with no framework needed. |
-| Test harness slices the `<script>` out of `index.html` and runs it against a stub DOM | Real code under test, zero dependencies, CI in seconds. |
-| Named constants for every tuning knob (`HIT=2.2`, `STAKE=2`, `CAP_FLOOR`, `CAP_SLOPE`) | A rescale can't silently strand a gate between cue counts (see §5, #1). |
-| **Golden tests** for chooser picks | Pick changes should be *deliberate*. If a golden test fails, that's the point. |
-| Playbooks as data (`playbooks` array: `strong`, `weak`, `excl`, `implies`) | Domain knowledge is added by adding a row, not a branch of `if`s. |
-| Idempotent migrations applied on first admin login | Deploying needs no terminal. |
-| `text/plain` POSTs to the collector | No CORS preflight, and unload beacons don't get dropped. |
-
-### Patterns we reject
-
-| Rejected | Why |
-|---|---|
-| Frameworks, bundlers, npm runtime deps on the page | Breaks rule 1; GitHub Pages serves it as-is. |
-| Cookies between page and collector | Different origins means third-party cookies, and Safari blocks those. The token travels in the request body instead. |
-| `localStorage` for the API key | Any injected script could read it forever. Purged at boot if an old version left one. |
-| `https://*.vercel.app` in the CSP | Shared multi-tenant domain; anyone can deploy there. |
-| Treating the email gate as access control | It's a sign-in sheet, not a lock. The source is public; anyone can skip it. |
-| In-memory rate limiting in the collector | Serverless instances don't share memory. Counts live in Postgres. |
-| Substring keyword matching | "rapidly" contains "api", "contest" contains "test". Word boundaries only. |
+**TODO(Sarah):** who the page is really for, and whether anyone else reviews PRs.
 
 ---
 
-## 3. Decision History
+## 2. The house rules
 
-The ten decisions that shaped the project, oldest first.
+Think of the page as a **lighthouse**: one tower, no hidden machinery, easy to see from shore. These five rules keep it standing.
 
-| # | Decision | Chose | Rejected | Why |
-|---|---|---|---|---|
-| 1 | **Hosting** (`15bae67`) | Static page on GitHub Pages | Any server-rendered app | Free, zero-ops, nothing to patch. |
-| 2 | **Testing** (`afcb3d5`, `87cb7aa`) | Node `--test` harness that evaluates the inline script against a hand-built stub DOM that parses `innerHTML` | Playwright/jsdom in CI | Zero deps and fast. The stub later grew a real element tree so clicks could be tested. |
-| 3 | **Key storage** (`d53d311`) | `sessionStorage`, opt-in, purged from `localStorage` at boot | "Remember me" in `localStorage` | An XSS slip would have leaked a key that sat on disk indefinitely. |
-| 4 | **Defence in depth** (`4a6d82c`, `24661f6`) | `esc()` everywhere *plus* a CSP | Escaping alone | Recheck text comes from an AI that read arbitrary web pages. Treat it as hostile. |
-| 5 | **Prompt builder** (`ac92d01`) | Read the Step 1 description first; playbooks write the brief; questions are optional extras | A short fixed template driven by wizard answers | The job description is the richest input. Skipping every question should still produce a full brief. |
-| 6 | **Analytics architecture** (`0733875` → `a7fe1b6`) | Keep the page static; add `collector/` on Vercel + Neon Postgres; token-in-body identity; admin on the collector's own origin with an HttpOnly cookie | Supabase or an auth platform; moving hosting to Vercel; cookies across origins | Smallest thing that can record "who, how often, how long". The brief was written first and committed (`email-gate-usage-tracking.prompt.md`). |
-| 7 | **Email-only gate now, magic link later** | Unverified email, seven-day token, schema ready for verification | Passwords or verification on day one | Goal is putting a name on visits, not locking the door. The upgrade path touches only `identify.js` + a new `verify.js`. |
-| 8 | **Admin login hardening** (`5149108`) | `ADMIN_EMAILS` **and** a 16+ char `ADMIN_KEY`; per-source failure counts in Postgres (8 per 15 min → 429); sources stored as HMAC of IP | Email list alone; in-memory throttling; storing IPs | Gate emails are unverified, so being on the list proves nothing. |
-| 9 | **Chooser scoring** (`a564e41`) | No floor on needs; threshold rises with demand (`7.2 + 0.175 × peak need`) | Flooring every need at 0.8; a fixed 7.8/7.25 threshold | The old math excluded nobody on any of 38 probe vectors, so "cheapest that works" was the same two models for every job on earth. |
-| 10 | **Forge authoring model** (`78e3d66`) | Fable 5.1 always authors; the user's pick executes; built-in draft is always kept | Replacing the draft; letting the target model write its own brief | Writing the prompt is the harder, higher-stakes job. A failed call must cost nothing. |
+1. **One file. No build step. No runtime dependencies.** If a change needs a bundler, it's the wrong change. GitHub Pages serves the file exactly as it is.
+2. **Treat outside text as mud on its boots.** Every string headed for `innerHTML` gets wiped with `esc()`. Behind that is a strict Content-Security-Policy that lists exact origins only. **Never a wildcard.**
+3. **If the README promises it, a test checks it.** `test/csp.test.mjs` compares the policy in the page with the one quoted in the README, character for character. A claim nobody checks eventually turns into a myth.
+4. **Failure costs the visitor nothing.** Collector down? They get in anyway. Forge fails? The draft stays put. Storage blocked? The page runs in memory and says so once.
+5. **Take only what you need.** Analytics carry a token, never the email. No IP addresses, no raw user agents, nothing anyone typed, no API keys. A visitor's Anthropic key goes to Anthropic and nowhere else, and it lives in `sessionStorage` only.
 
-Two smaller ones worth knowing: **exclusions suppress playbooks** (`8971348`: "do not touch the database" now actually removes the database playbook), and **exact-origin CSP** (`1c6980c`: the wildcard added during a merge was removed and a test now blocks it coming back).
+### What we do, and what we don't
 
----
-
-## 4. Skill / Command Conventions
-
-**Current state: there are none in the repo.** No `.claude/` directory, no `CLAUDE.md`, no custom skills or slash commands are tracked. (`.claude/launch.json` exists in some local trees but is deliberately untracked; see `5b0a6a7`.)
-
-What the repo *does* have is a de facto convention for **task briefs**, which play the role skills would:
-
-- **Big features start as a committed `*.prompt.md` brief.** `email-gate-usage-tracking.prompt.md` was committed, refined, then built from, and kept for reference. Name pattern: `<feature-in-kebab-case>.prompt.md` at the repo root.
-- **Personal or scratch briefs stay out of git** via `.git/info/exclude` (per-clone, never pushed), e.g. `practical-map-prompt-generator.prompt.md`.
-- **Event names** (`trackEvent`) are `snake_case`, first segment is the feature: `chooser_recommended`, `prompt_copied`, `recheck_applied`.
-- **Storage keys** are prefixed `pm_`.
-
-**Proposed rule for when skills arrive** (TODO(owner): adopt or change):
-
-- Write a **new skill** when the same multi-step procedure has been done twice by hand. Candidates: "update the model snapshot" (edit `models`, bump `PUBLISHED_AS_OF`, fix hero/footer dates and `test/smoke.test.mjs`) and "deploy/point at a collector" (two edits + README CSP block in one commit).
-- **Reuse** a built-in (`/code-review`, `/security-review`, `/simplify`) for anything generic.
-- Name skills `pm-<verb>-<noun>` (e.g. `pm-update-snapshot`) so they sort together and don't collide with built-ins.
-
----
-
-## 5. Failure Modes + Fixes
-
-The greatest hits of things that broke, and how each was put right. Most were found in the September 2026 review (PR #4).
-
-| # | What broke | Root cause | Fix |
-|---|---|---|---|
-| 1 | **"Cheapest that works" was the same two models for every job** | `capability()` floored every need at 0.8, drowning the real signal; the threshold sat below every model's score | Dropped the floor, made the threshold scale with peak need, added a 38-vector probe test (`a564e41`) |
-| 2 | **Stored XSS via Recheck** | Model fields rendered with `innerHTML` unescaped; applied patches persisted, so the payload ran on every load | `esc()` on every model string, a test with the reviewer's payload (`4a6d82c`), then a CSP (`24661f6`) |
-| 3 | **"rapidly" meant you needed an API** | Keyword matching by substring | Word-boundary matching; ≤3-letter words must be whole (`75fae0b`) |
-| 4 | **"Do not touch the database" produced… a database** | Exclusions were printed but never used; the bare word "login" fired the gate playbook | Every playbook declares `excl`; everyday single words need a second hit (`8971348`) |
-| 5 | **18 tests failed the moment analytics were switched on** | The harness string-replaced the exact text `const COLLECTOR_URL = "";` | Match the declaration by identifier with a regex; always set it (`ff8aec6`) |
-| 6 | **CSP silently allowed any `*.vercel.app`** | Added during a merge to make the collector reachable | Exact origin only; test rejects wildcards and matches the README block (`1c6980c`) |
-| 7 | **Storage failures vanished** | Four empty `catch {}` blocks | `storageWarn()` logs once per cause and shows one notice (`5dd7abc`) |
-| 8 | **Recheck said "JSON parse error" when it really ran out of time** | `pause_turn` after the fifth continuation fell into the parser | Name the exhausted budget in plain words (`2960086`); also handle truncation, timeouts, `max_tokens` (`7e79ded`) |
-| 9 | **Different changes with the same title got dropped** | Dedup matched on kind + model + title | `sameChange()` compares summary, date and patch too (`a3f99da`) |
-| 10 | **CSS class collisions stretched the layout** | `.sub` and `.rec` reused across unrelated components | Renamed to `.subcard` and `.isrec` (`af6f199`, `48aef17`) |
-
-**The pattern behind the pattern:** almost every bug was a *claim that wasn't enforced*. The fix is always the same shape: make the code do it, then add a test that fails if it stops.
-
----
-
-## 6. Integration Notes
-
-### Services the product talks to
-
-| Service | Used for | Notes |
+| ✅ We do | ❌ We don't | Why |
 |---|---|---|
-| **Anthropic API** (`api.anthropic.com`) | Recheck Option A (with web search) and the prompt forge (no search, 12k-token ceiling) | Called straight from the browser with the *user's own* key (`anthropic-dangerous-direct-browser-access`). **Flaky spot:** the web-search tool type and beta header in `callClaude()` are pinned strings. If Anthropic renames them, Option A fails with a 400 naming the field. There's an automatic retry without the fallback beta header. Per the README, it has never been exercised against a live key in this repo. |
-| **Vercel** | Hosts `collector/` (Root Directory = `collector`) | Rewrites in `collector/vercel.json` map `/admin/*` to `/api/admin/*`. |
-| **Neon Postgres** | Users, tokens, sessions, events, login failures | Attached from the Vercel Marketplace; injects `DATABASE_URL`. |
-| **GitHub Pages** | Serves `index.html` from `main` | Redeploys a minute or two after a push. |
-| **GitHub Actions** | `.github/workflows/ci.yml`: both test suites on every push and PR | |
-
-### MCP servers
-
-**None are configured in the repo** (no `.mcp.json`, no `.claude/settings.json`). TODO(owner): if your Claude sessions rely on connectors (GitHub, Vercel, etc.), list them here with a line on which ones have misbehaved.
-
-### Auth and secrets
-
-- **Secrets live in Vercel, never in git.** `.gitignore` blocks `.env` and `.env.*`; `collector/.env.example` is the only template.
-- Collector env vars: `DATABASE_URL` (from Neon), `ADMIN_EMAILS`, `ADMIN_KEY` (16+ chars; also seeds the cookie-signing secret, so changing it logs everyone out), optional `ALLOWED_ORIGIN` (defaults to `https://sarahschuyler-stack.github.io`).
-- Visitor identity: a random seven-day token; only its SHA-256 is stored.
-- Admin sessions: signed HttpOnly cookie, 12 hours.
-- The user's Anthropic key: never leaves the browser except to Anthropic; never touches our collector.
-- TODO(owner): rotation cadence for `ADMIN_KEY`, and who else (if anyone) has Vercel access.
+| Keep small state objects (`rc`, `pb`, `gate`, `track`, `forge`) in the script | Pull in a framework | Tests can reach the objects directly |
+| Run the real script against a hand-built stub DOM | Put jsdom or Playwright in CI | Zero dependencies, and the suite finishes in seconds |
+| Name every tuning knob (`HIT = 2.2`, `CAP_FLOOR`, `CAP_SLOPE`) | Leave magic numbers around | Retuning can't quietly break a threshold that depends on another number |
+| Keep **golden tests** for the chooser's picks | Let picks drift | Changing a pick should be a decision, not an accident |
+| Store playbooks as data (`strong`, `weak`, `excl`, `implies`) | Pile up `if` branches | New knowledge means one new row |
+| Send the collector token in the request body, as `text/plain` | Use cookies across origins | Safari blocks third-party cookies, and plain text skips the CORS preflight |
+| Count failed admin logins in Postgres | Rate-limit in memory | Serverless instances don't share memory |
+| Match whole words | Match substrings | Otherwise "rapid**ly**" contains "api" |
 
 ---
 
-## 7. Team Workflows
+## 3. The big decisions
 
-How AI fits into the cadence today, reconstructed from the history:
+Ten forks in the road, and why I picked the path I did.
+
+1. **A static page on GitHub Pages, not a server.** It's free, needs no upkeep, and has nothing to patch at 2 a.m.
+2. **Homegrown tests, not browser tests** (`afcb3d5`, `87cb7aa`). The harness lifts the `<script>` out of `index.html` and runs it against a stub DOM. That stub eventually learned to parse `innerHTML`, so tests can click buttons.
+3. **The API key lives in `sessionStorage`, not `localStorage`** (`d53d311`). A key sitting on disk forever is a key waiting to be stolen. Any old copy gets purged at boot.
+4. **Escaping *and* a CSP, not escaping alone** (`4a6d82c`, `24661f6`). Recheck text comes from an AI that has been reading strange websites, so I treat it like a stranger's USB stick.
+5. **The job description drives the brief; the questions are optional** (`ac92d01`). What you describe in Step 1 is the richest thing we get, so skipping every question still gives you a full brief.
+6. **Keep the page static and add a small collector** (`0733875` → `a7fe1b6`). I rejected Supabase, auth platforms and moving hosting to Vercel. I also wrote the brief *before* the code, and it's still in the repo (`email-gate-usage-tracking.prompt.md`).
+7. **An email-only gate for now, magic links later.** The gate exists to put a name on each visit, not to lock the door. The upgrade touches only `identify.js` and a new `verify.js`.
+8. **Admin login needs a listed email *and* a key of 16+ characters** (`5149108`). The email alone proves nothing, because gate emails aren't verified. Eight failures in 15 minutes gets a 429, and sources are stored as an HMAC of the IP, never the IP itself.
+9. **Capability scoring that depends on the job** (`a564e41`). The old math excluded nobody, so "cheapest that works" named the same two models for every job on earth. The threshold now rises with what the job demands: `7.2 + 0.175 × peak need`.
+10. **Fable writes the brief; your chosen model runs it** (`78e3d66`). Writing a good brief is the harder job, so the strongest model does it. The built-in draft is always kept, so a failed call costs nothing.
+
+Two small ones with a big effect: "do not touch the database" now actually removes the database playbook (`8971348`), and a test now blocks wildcard origins from ever sneaking back into the CSP (`1c6980c`).
+
+---
+
+## 4. Skills and commands
+
+**Honest answer: we don't have any yet.** There's no `.claude/` folder, no `CLAUDE.md`, and no custom slash commands in the repo.
+
+What we *do* have are habits that work like skills:
+
+- **Big features start as a brief.** Commit it as `<feature-name>.prompt.md` at the repo root, refine it, then build from it.
+- **Scratch briefs stay out of git.** Put them in `.git/info/exclude`, which only affects your clone and never gets pushed.
+- **Event names** are `snake_case`, and the first word is the feature: `chooser_recommended`, `prompt_copied`.
+- **Storage keys** start with `pm_`.
+
+**My rule of thumb for later:** once we've done the same chore by hand twice, it becomes a skill named `pm-<verb>-<noun>`. The first two in line are `pm-update-snapshot` and `pm-connect-collector`. For anything generic, use a built-in (`/code-review`, `/security-review`, `/simplify`) instead of reinventing it.
+
+---
+
+## 5. Things that broke (and how we fixed them)
+
+A parable first. A shopkeeper hung a sign reading **"Door always locked."** Every night she walked past it feeling safe. One morning the till was empty: the sign was true when she hung it, and nobody had checked since.
+
+Nearly every bug on this list is that sign.
+
+| # | What broke | Why | The fix |
+|---|---|---|---|
+| 1 | "Cheapest that works" was always the same two models | Every need was floored at 0.8, drowning the real signal | Removed the floor, made the threshold move with the job, added a 38-vector probe test (`a564e41`) |
+| 2 | Stored XSS through Recheck | Model text went into `innerHTML` unescaped, and applied patches persisted | `esc()` on every string, then a CSP (`4a6d82c`, `24661f6`) |
+| 3 | "rapidly" meant you needed an API | Keywords matched as substrings | Word-boundary matching (`75fae0b`) |
+| 4 | "Don't touch the database" produced… a database | Exclusions were printed but never used | Playbooks declare `excl`; common single words need a second hit (`8971348`) |
+| 5 | 18 tests failed the moment analytics went live | The harness looked for the exact text `COLLECTOR_URL = ""` | It now matches the variable name, whatever its value (`ff8aec6`) |
+| 6 | The CSP quietly allowed any `*.vercel.app` | A merge added it as a shortcut | Exact origin only, enforced by a test (`1c6980c`) |
+| 7 | Storage failures vanished silently | Four empty `catch {}` blocks | Warn once per cause and show one notice (`5dd7abc`) |
+| 8 | Recheck reported "bad JSON" when it had really run out of time | A paused turn fell into the JSON parser | Say "out of budget" in plain words (`2960086`, `7e79ded`) |
+| 9 | Different changes that shared a title got dropped | Deduplication compared only titles | Compare summary, date and patch too (`a3f99da`) |
+| 10 | Layout stretched in odd places | CSS class names `.sub` and `.rec` collided | Renamed to `.subcard` and `.isrec` (`af6f199`, `48aef17`) |
+
+**The moral:** a promise isn't kept until a test keeps it.
+
+---
+
+## 6. Who we talk to
+
+| Service | What for | Watch out |
+|---|---|---|
+| **Anthropic API** | Recheck with web search, and the prompt forge | Called straight from the browser with the visitor's own key. ⚠️ **The flaky spot:** the web-search tool name and beta header are pinned strings in `callClaude()`. If Anthropic renames them, you'll see a 400 that names the field. There's one automatic retry without the beta header. It has never been run against a live key in this repo. |
+| **Vercel** | Hosts `collector/` (Root Directory `collector`) | `/admin/*` routes are rewritten in `collector/vercel.json` |
+| **Neon Postgres** | Users, tokens, sessions, events, failed logins | Attached from the Vercel Marketplace; it provides `DATABASE_URL` |
+| **GitHub Pages** | Serves the page from `main` | Takes a minute or two after each push |
+| **GitHub Actions** | Runs both test suites on every push and PR | |
+
+**MCP servers:** none are configured in the repo. **TODO(Sarah):** list the connectors my Claude sessions lean on, and which ones have been moody.
+
+### Secrets, kept like a spare house key: somewhere safe, never under the mat
+
+- **Secrets live in Vercel, never in git.** `.gitignore` blocks `.env*`, and `collector/.env.example` is the only template.
+- **Collector variables:** `DATABASE_URL`, `ADMIN_EMAILS`, `ADMIN_KEY` and an optional `ALLOWED_ORIGIN`. `ADMIN_KEY` also signs the admin cookies, so changing it logs everyone out.
+- **Visitor tokens** last seven days, and only their SHA-256 is stored.
+- **Admin sessions** use a signed HttpOnly cookie that lasts 12 hours.
+- **TODO(Sarah):** how often to rotate `ADMIN_KEY`, and who else has Vercel access.
+
+---
+
+## 7. How work gets done
+
+AI does most of the typing here; I do the steering and the merging.
 
 ```
- Sarah states the job ──▶ Claude Code session on a claude/<name> branch
-         ▲                          │  writes code + tests + README in ONE commit
-         │                          ▼
-   merges PR  ◀── CI green ◀── PR opened ◀── push
+  I describe the job ──▶ a Claude Code session on a claude/<name> branch
+          ▲                        │  code + tests + README, together
+          │                        ▼
+     I merge   ◀── CI goes green ◀── PR opened
 ```
 
-- **Every change arrives as a PR from a `claude/<adjective>-<scientist>-<id>` branch** (earlier ones used `feat/prompt-builder`). Sarah merges. There's no branch protection or review bot visible in the repo.
-- **Big work starts with a brief, not code.** For the email gate: brief committed (`0733875`), refined with the owner's six phases (`bf66872`), then built (`a7fe1b6`).
-- **Periodic review passes.** The September 2026 review produced a numbered list of weaknesses; each fix commit cites its number ("review weakness #3").
-- **Commit messages are essays, on purpose.** They explain the root cause, what changed, what *didn't* change, and which assertions moved and why. Match that style: it's the project's real decision log.
-- **Docs ship with code.** If behaviour changes, the README changes in the same commit. Tests enforce some of this (the CSP block).
-- **Merging main into a branch** gets its own commit explaining how conflicts were resolved (`28abc7a`, `cd776d4`).
-- AI-authored commits carry `Co-Authored-By` and `Claude-Session` trailers, so you can trace any change back to the conversation that made it.
+- **Every change arrives as a PR from a `claude/...` branch**, and I merge it. There's no branch protection yet.
+- **Big work starts with a brief, not code.** Write it, refine it, then build.
+- **Review passes come in rounds.** The September 2026 review produced a numbered list of weaknesses, and each fix commit cites its number.
+- **Commit messages are little essays, on purpose.** They cover the root cause, what changed, what *didn't*, and which test expectations moved and why. The history is our real decision log, so please keep writing them that way.
+- **Docs ship with the code, in the same commit.** Some of this is enforced by tests.
+- **AI commits carry `Co-Authored-By` and `Claude-Session` lines**, so any change can be traced back to the conversation that produced it.
 
-TODO(owner): is there a release/announce step after merge, or does "merged to main" = shipped?
-
----
-
-## 8. Things I Wish I Knew On Day 1
-
-A few parables, one line each:
-
-1. **The README is slightly behind the code in one spot.** "How the chooser scores a job" still describes the old 7.8/7.25 threshold and says Astra wins the premium slot "for most jobs". Since `a564e41` the threshold is `7.2 + 0.175 × peak need`, and premium varies by job. Trust `index.html` around line 533. (Good first PR!)
-2. **`collector/README.md` describes a fresh deploy, not today's repo.** Step 6's "before" CSP and the local-development note ("the policy in the repository allows only `https://api.anthropic.com`") predate `9bd4480`. The shipped policy already includes the collector origin.
-3. **Changing the CSP is a three-place edit:** the meta tag on line 10 of `index.html`, the quoted block in `README.md`, and (if it's a new collector) `COLLECTOR_URL` around line 434. The CSP test fails if the first two disagree.
-4. **For local collector work, keep your edits out of the commit.** Pointing `COLLECTOR_URL` at `localhost:3000` and widening the CSP are local-only changes.
-5. **Updating the model snapshot is four edits:** the `models` array, `PUBLISHED_AS_OF`, the hero stamp + footer dates, and `test/smoke.test.mjs`.
-6. **A golden test failing after a scoring tweak isn't a bug.** It's a signature line: update the expected picks *and say why in the commit*.
-7. **`index.html.html` exists in some trees.** It's a stray copy. `.gitignore` catches it; never commit it.
-8. **Line numbers in older briefs are stale.** `email-gate-usage-tracking.prompt.md` says the script starts at line 344 of a 1014-line file. The file is now ~2040 lines.
-9. **The gate is a guest book, not a bouncer.** Never build anything that assumes a signed-in email is really that person, until magic-link verification lands.
-10. **Node 22 locally.** The harness and collector both need it; nothing else to install for the page.
+**TODO(Sarah):** is there a "we shipped it" step, or does merged mean live?
 
 ---
 
-*Maintainers: when you fix something that surprised you, add a line to §5 or §8. That's how this stays true.*
+## 8. What I wish I'd known on day one
+
+1. **The main README is a little behind the code.** It still describes the old 7.8/7.25 threshold and says Astra wins "best regardless of price" for most jobs. Trust `index.html` around line 533. *(A lovely first PR, if you want one.)*
+2. **`collector/README.md` describes a fresh deploy, not today's repo.** The live CSP already includes the collector.
+3. **A CSP change touches three places:** the meta tag (line 10 of `index.html`), the quoted block in the README, and `COLLECTOR_URL` (around line 434) if the collector moves.
+4. **Local collector tweaks stay local.** Pointing at `localhost:3000` and widening the CSP should never land in a commit.
+5. **Updating the model snapshot takes four edits:** the `models` array, `PUBLISHED_AS_OF`, the hero and footer dates, and `test/smoke.test.mjs`.
+6. **A golden test failing after a scoring tweak isn't a bug.** It's asking you to sign off. Update the expected picks and say why in the commit.
+7. **`index.html.html` is a stray copy** found in some working trees. `.gitignore` catches it; please don't commit it.
+8. **Old briefs quote old line numbers.** The page has roughly doubled in size since then (about 2,040 lines now).
+9. **The gate is a guest book, not a bouncer.** Don't build anything that assumes an email proves who someone is, not until magic links arrive.
+10. **Install Node 22, and that's all you need** to work on the page.
+
+---
+
+*You'll find something that surprises you. When you do, add a line to §5 or §8. That's how this guide stays true, and how the next person gets a better day one than you did.* 💛
